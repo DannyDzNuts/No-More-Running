@@ -1,0 +1,246 @@
+No More Running
+Developed by Daniel Blake 2025
+
+Used to enhance communication among many company positions allowing for more efficient workflow.
+
+Provides a friendly, responsive, low-resource user interface for generating and managing company objects (in our case, customer orders).
+Allows for the paging of targeted audiances and notification of new company objects.
+
+This program communicates over a pre-established MQTT network using the paho-mqtt library and a Mosquitto broker managed by broker_manager.pyw.
+
+More information available inside broker_manager.pyw, Project Outline.txt, and Project Scope.txt.
+
+
+Built For Windows & Linux
+
+Workflow;
+
+Operating System Compatability Is Verified (Linux & Windows Only)
+    |
+    - Program Notifies User Of Incompatability On Check Failure
+    |
+    - UI Framework Is Generated
+        |
+        - I/O & Background Logic Thread Created
+            |
+            - NMR Checks For Config File
+                |
+                - Program Notifies User Of Missing Config File If No Config File Is Detected
+                |
+                - Config File Is Read & Values Stored As Global Variables
+                |
+                - A Clock Is Created To Detect & Update Config Variables Every 30 Seconds
+            |
+            - UI Objects Are Created & Configuration Options Applied To Said Objects
+                |
+                - UI Is Displayed To The User
+                    |
+                    - User Is Notified Of Pending Connection To Broker Services
+                        |
+                        - Background Thread Verifies PSK File Is Present On Hard Disk
+                            |
+                            - Background Thread Verifies Expiry Date Of PSK
+                                |
+                                - On Failure: Background Thread Will Initiate PSK Refresh (Listed Below, After Client-To-Broker Authentication)
+                        |
+                        - Background Thread Prepares For Connection To Broker Services Using Retreived Configuration Values
+                            |
+                            - Background Thread Establishes Connection To Broker Services & Authenticates Itself To Broker
+                                |
+                                - On Failure: Backgroudn Thread Notifies User Of Connection Failure: Client-To-Broker Authentication Failure
+                                |
+                                - On Success: Background Thread Notifies User Of Connection Established: Negotiating Authentication
+                            |
+                            - Background Thread Subscribes To Authentication Topic
+                                |
+                                - If PSK Not Expired: Background Thread Requests HMAC From Broker And Provides Client Identifier
+                                |
+                                - Background Thread Retrieves Encrypted PSK From Hard Disk As Local Variable
+                                    |
+                                    - Background Thread Awaits Broker Response (2 Minute Timeout)
+                                        |
+                                        - On Failure: Background Thread Aborts Connection On Timeout
+                                            |
+                                            - Background Thread Notifies User Of Connection Failure: Timeout During HMAC Request
+                                        |
+                                        - On Success: Background Thread Recieves HMAC Response From Broker Services
+                                            |
+                                            - Background Thread Decrypts PSK, Discard Encrypted Local Variable, Creates Local Variable Of Raw PSK
+                                                |
+                                                - Background Thread Performs Hash Calculations And Compares Derived HMAC To Received HMAC
+                                                    |
+                                                    - On Failure: Background Thread Aborts Connection
+                                                        |
+                                                        - Background Thread Notifies User Of Connection Failure: Invalid PSK Received
+                                                    |
+                                                    - On Success: Background Thread Notifies User of Connection Success: Subscribing To Relevant Topics
+                                |
+                                - If PSK Expired: Background Thread Requests PSK Refresh And Provides Client Identifier
+                                    |
+                                    - Background Thread Waits 30 Seconds Before Attempting Subscription To Newly Created PSK Refresh Channel (Follows Pre-determined Naming Scheme)
+                                        |
+                                        - Background Thread Publishes Client Identifier
+                                        |
+                                        - Background Thread Awaits Broker Response (2 Minute Timeout)
+                                            |
+                                            - On HMAC Received: Background Thread Retrieves Backup PSK From Hard Disk
+                                                |
+                                                - Background Thread Decrypts Backup PSK, Forgets Encrypted Backup PSK, Stores Raw Backup PSK As Local Variable
+                                                    |
+                                                    - Background Thread Performs Hashing Calculations On Raw Backup PSK
+                                                        |
+                                                        - Background Thread Compares Locally Calculated HMAC To Received HMAC
+                                                            |
+                                                            - On Failure: Background Thread Publishes Failure Message
+                                                                |
+                                                                - Background Thread Aborts Connection
+                                                                    |
+                                                                    - Background Thread Logs Event PSK Refresh Failure: Invalid Backup HMAC Recieved
+                                                                        |
+                                                                        - Background Thread Notifies User Connection Failure: Invalid Backup HMAC Received
+                                                            |
+                                                            - On Success: Background Thread & Broker Services Forget Raw Backup PSK Variables
+                                                                |
+                                                                - Background Thread Generates New PSK As Local Variable
+                                                                    |
+                                                                    - Background Thread Publishes New PSK
+                                                                        |
+                                                                        - Background Thread Awaits Broker Services HMAC Response (2 Minute Timeout)
+                                                                            |
+                                                                            - On Failure: Background Thread Aborts Connection
+                                                                                |
+                                                                                - Background Thread Logs Event PSK Refresh Failure: New PSK HMAC From Broker Timeout
+                                                                                    |
+                                                                                    - Background Thread Notifies User Connection Failure: No New PSK HMAC Received
+                                                                            |
+                                                                            - On Success: Background Thread Encrypts PSK & Replaces Old PSK With New On Hard Disk
+                                                                                |
+                                                                                - Background Thread Forgets New PSK Raw Variable, New PSK Encrypted Varialbe, Any Remaning HMAC Variables
+                                                                                |
+                                                                                - Background Thread Notifies User Establishing Connection: New PSK Successfully Established - Resetting Connection
+                                                                                    |
+                                                                                    - Background Thread Restarts Connection Process With New, Non-Expired PSK
+                                                    |
+                                                    - Background Thread Subscribes To Relevant Topics
+                                                        |
+                                                        - Background Thread Notifies User: Requesting Active Objects - This May Take Up To 2 Minutes - Only Create New Objects During This Time
+                                                        |
+                                                        - Background Thread Requests Active {OBJECT} Update From Broker Services & Provides Client Role Identifier
+                                                            |
+                                                            - Background Thread Awaits All Broker Services Responses (2 Minutes, Full Response May Be Split In The Case Of Many Objects)
+                                                                |
+                                                                - On Success: Background Thread Parses Each Received Message & Creates Raltive Objects
+                                                                    |
+                                                                    - Background Thread Updates UI With Newly Created Objects
+                                                                |
+                                                                - On Failure: Background Thread Notifies User: No Objects Received From Broker Services
+                                                        |
+                                                        - On Local {OBJECT} Creation Request: UI Thread Prompts User For {OBJECT} Parameters
+                                                            |
+                                                            - UI Thread Performs Input Sanitation & Validation
+                                                                |
+                                                                - On Failure: UI Thread Notifies User Of Input Error
+                                                                    |
+                                                                    - UI Thread Prompts User For {OBJECT} Parameters
+                                                                |
+                                                                - On Success: UI Thread Generates A UUID
+                                                                    |
+                                                                    - UI Thread Compares New UUID Against {OBJECT} Dictionary
+                                                                        |
+                                                                        - On Match: UI Thread Generates A New, Replacement UUID Until No Match Is Found
+                                                                        |
+                                                                        - On Unique UUID: UUID Is Stored As A Local Variable
+                                                                            |
+                                                                            - UI Thread Creates & Displays An {OBJECT} With Given Parameters
+                                                                                |
+                                                                                - UI Thread Appends UUID As A Key To An {OBJECT} Dictionary With The {OBJECT} Reference As The Key's Value
+                                                                                    |
+                                                                                    - UI Thread Prepares {OBJECT} Creation Payload With Audiance ID, {OBJECT} UUID, {OBJECT} Parameters
+                                                                                        |
+                                                                                        - UI Thread Publishes Creation Request Payload To Relevant Topic
+                                                        
+                                                        |
+                                                        - On Local {OBJECT} Deletion Request: UI Thread Retreives UUID Of Selected Object
+                                                            |
+                                                            - UI Thread Retreives {OBJECT} Reference From {OBJECT} Dictionary Using The {OBJECT} UUID As The Key
+                                                                |
+                                                                - UI Thread Attempts To Delete The {OBJECT} Using The {OBJECT} Reference
+                                                                    |
+                                                                    - UI Thread Prepares {OBJECT} Deletion Payload With Audiance ID, {OBJECT} UUID
+                                                                        |
+                                                                        - UI Thread Publishes {OBJECT} Deletion Payload To Relevant Topic
+
+                                                        |
+                                                        - On Remote Communication Received: Background Thread Decodes Payload From UTF-8 
+                                                            |
+                                                            - Background UI Attempts To Parse The Message Into {SENDER ID}, {AUDIANCE ID}, {MESSAGE TYPE}, {MESSAGE PARAMETERS}
+                                                                |
+                                                                - On Failure: Background Thread Discards The Message
+                                                                    |
+                                                                    - Background Thread Logs Event: Invalid Payload Received: {PAYLOAD}
+                                                                |
+                                                                - On Success: Background Thread Compares {AUDIANCE ID} To Local Configuration {AUDIANCE ID} Value
+                                                                    |
+                                                                    - On Failure: Background Thread Discards Message
+                                                                    |
+                                                                    - On Success: Background Thread Extracts {MESSAGE TYPE} & {MESSAGE PARAMETERS} To Local Variable
+                                                                        |
+                                                                        - Background Thread Discards Message (Removing Object Reference And Saving RAM)
+                                                                            |
+                                                                            - Background Thread Passes {SENDER ID}, {MESSAGE PARAMETERS} To Relevant Function
+                                                        
+                                                        |
+                                                        - On Remote {OBJECT} Creation Request: Background Thread Parses {OBJECT PARAMETERS} For {OBJECT UUID}, {OBJECT NAME}, {OBJECT FLAGS}
+                                                            |
+                                                            - On Failure: Background Thread Logs Event: Invalid Object Received: Remote Object Creation Request: {SENDER ID}, {OBJECT PARAMETERS}
+                                                            |
+                                                            - On Success: Checks For Duplicate {OBJECT UUID} In Local Object Dictionary
+                                                                |
+                                                                - On Found Duplicate: Background Thread Discards Received Object, Fucntion Returns 0
+                                                                |
+                                                                - On No Duplicate Found: Background Thread Creates Object Using {OBJECT NAME}, {OBJECT FLAGS} As {OBJECT REFERENCE}
+                                                                    |
+                                                                    - Background Thread Appends {OBJECT UUID}: {OBJECT REFERENCE} To Local Object Dictionary
+                                                                        |
+                                                                        - On Success: Function Returns 0
+                                                                        |
+                                                                        - On Failure: Background Thread Logs Event: Object Creation Failed: Unkown Error {SENDER ID}, {OBJECT PARAMETERS}
+
+                                                        
+                                                        |
+                                                        - On Remote {OBJECT} Deletion Request: Background Thread Parses {MESSAGE PARAMETERS} For {OBJECT UUID}
+                                                            |
+                                                            - On Failure: Background Thread Logs Event: Invalid Object Received: Remote Object Deletion Request: {SENDER ID}, {MESSAGE PARAMETERS}
+                                                            |
+                                                            - On Success: Background Thread Searches Local Object Dictionary For {OBJECT UUID}
+                                                                |
+                                                                - On Failure: Function Returns 0
+                                                                |
+                                                                - On Success: Background Thread Retreives {OBJECT REFERENCE} From Local Object Dictionary Using {OBJECT UUID} As Key
+                                                                    |
+                                                                    - Background Thread Deletes Object Using {OBJECT REFERENCE}
+                                                                        |
+                                                                        - Function Returns 0
+                                                        
+                                                        |
+                                                        - On Remote {OBJECT} Page Request: Background Thread Parses {MESSAGE PARAMETERS} For {OBJECT PARAMETERS}
+                                                            |
+                                                            - Background Thread Identifies {CLIENT ID} Within {OBJECT PARAMETERS}
+                                                                |
+                                                                - Background Thread Verifies {CLIENT ID} Matches Local Variable {CLIENT ID}
+                                                                    |
+                                                                    - On Failure: Background Thread Discards Message
+                                                                    |
+                                                                    - On Success: Background Thread Parses {MESSAGE PARAMETERS} For {OBJECT UUID}
+                                                                        |
+                                                                        - Background Thread Searches {OBJECT DICTIONARY} For {OBJECT UUID}
+                                                                            |
+                                                                            - On Failure: Background Thread Discards Message
+                                                                            |
+                                                                            - On Success: Background Thread Retreives Associated {OBJECT NAME} of {OBJECT UUID} In {OBJECT DICTIONRARY} Using {OBJECT REFERENCE}
+                                                                                |
+                                                                                - Background Thread Notifies User: {SENDER ID} Is Paging For {OBJECT NAME}
+                                                                                |
+                                                                                - Background Thread Plays Notification Sound
+                                                                                    |
+                                                                                    - Background Thread Awaits User Acknowledgement

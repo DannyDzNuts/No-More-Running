@@ -1,0 +1,54 @@
+Project Scope:
+
+PROJECT OVERVIEW
+	- Name: No More Running
+	
+	- Objective: Develop a Python-based application with a Tkinter UI that communicates over a brokered peer-to-peer network (using MQTT) and is optimized for deployment on a Raspberry Pi 5.
+	
+	- Goal: Create a reliable, resource-efficient application with an intuitive user interface, real-time communication, robust data validation, and sound notifications.
+	
+	
+	
+KEY FEATURES AND FUNCTION REQUIREMENTS
+	- User Interface: Design a straightforward and responsive UI in Tkinter. This interface should be user-friendly, with easy navigation and minimal training required for users.
+	
+	- Network Communication: Implement MQTT to establish a brokered P2P network for real-time data exchange.
+	
+	- Data Validation: Ensure all input data is validated for accuracy and security.
+		- User Input: Validate entries at the user interface level to prevent incorrect, duplicate, or malicious data submission.
+		- Network Data: Check and sanitize incoming data from the MQTT network to prevent vulnerabilities and data corruption.
+		
+	- Sound Alerts: Use the playsound libray to trigger audio notification for specific events or statuses within the application.
+	
+	- Authentication: Implement dual authentication.
+		- client-Broker: Authenticate clients connecting to the broker to confirm only authorized devices can send data.
+		- Broker-to-Client: Verify broker credentials on the client side to prevent unauthorized servers from sending data.
+	
+	- Multi-Threading: Implement multi-threading to separate the following functions for optimal performance:
+		- UI Thread: Dedicated to handling user interface updates and interactions, ensuring a smooth and responsive experience.
+		- Background Logic Thread: Manages core application logic independently of the UI to prevent lag or interference.
+		- I/O Thread: Handles network communication and other I/O tasks, ensuring non-blocking operation.
+		
+	-Performance and Efficiency: Optimize for low CPU and memory usage, prioritizing fast performance on the Raspberry Pi 5.
+	
+	
+
+TECHNICAL SPECIFICATIONS
+	- Programming Language: Python (3.10)
+	
+	- UI Library: Tkinter for Python
+	
+	- Networking Library: PAHO-MQTT (2.1.0)
+	
+	- Sound Library: playsound (1.3.0)
+	
+	- Multi-Threading: threading (native to Python)
+	
+	- Encryption: hmac, hashlib
+	
+	- UUID: uuid
+	
+	- Library Dependencies: wheel (0.44.0), setuptools (74.1.1)
+	
+	- Platform: Raspberry Pi 5 (8gb)
+	
