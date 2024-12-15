@@ -482,9 +482,9 @@ class ContentObject(tk.Frame):
                                  fg = local_state['side_fg_color']
                                  )
         
-        _notify_win.focus_set()
-        _notify_win.grab_set()
-        
+        _notif_win.focus_set()
+        _notif_win.grab_set()
+
         def _destroy():
             _sound_event.set()
             _notif_win.destroy()
