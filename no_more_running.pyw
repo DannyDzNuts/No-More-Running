@@ -1207,6 +1207,7 @@ def logic_thread():
         _check_queue()
 
 def tk_thread():
+    print('tk running')
     global local_state
 
     root = tk.Tk()
@@ -1285,6 +1286,7 @@ def tk_thread():
         (0, 77, 255),   # Blue
         (117, 7, 135)   # Violet
     ]
+    print('root created')
 
     def _interpolate_color(color1, color2, factor):
         r1, g1, b1 = color1
@@ -1317,6 +1319,7 @@ def tk_thread():
     root.mainloop()
 
 def app_start():
+    print('App starting')
     global local_state
 
     local_state = {
@@ -1434,6 +1437,7 @@ def app_start():
         }
     }
 
+    print('Major dictionaries are good')
     selected_theme = local_state['config']['theme']
     theme_colors = themes.get(selected_theme, themes['light'])
     local_state.update(theme_colors)
@@ -1441,6 +1445,7 @@ def app_start():
     mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True)
     logic_thread_obj = threading.Thread(target = logic_thread, daemon = True)
 
+    print('Threads created, vars defined')
     config_initialized.wait(timeout = 30)
     if not config_initialized.is_set():
         with open(LOG_FILE, 'a') as file:
@@ -1450,7 +1455,7 @@ def app_start():
     else:
         mqtt_thread_obj.start()
         logic_thread_obj.start()
-
+    print("config init'd")
     tk_thread()
 
 if __name__ == '__main__':
