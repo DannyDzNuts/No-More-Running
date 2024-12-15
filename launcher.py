@@ -115,6 +115,8 @@ def ensure_display():
         if "DISPLAY" not in os.environ:
             print("Detected SSH session. Setting DISPLAY environment variable to :0")
             os.environ["DISPLAY"] = ":0"
+    elif platform.system() == "Windows":
+        print("Windows detected. DISPLAY variable may not be required.")
 
 def activate_and_launch():
     """Activates the virtual environment and launches the main program."""
