@@ -30,7 +30,7 @@ This project was created to solve real-world workflow challenges, combining a pa
 ### Third-Party Libraries
 - [paho-mqtt](https://www.eclipse.org/paho/) (v1.6.1): For MQTT messaging.
 - [pygame](https://www.pygame.org/) (v2.6.1): For multimedia functionality.
-- [Pillow](https://pillow.readthedocs.io/en/stable/) (v11.0.0): For image processing.
+- [Pillow](https://pillow.readthedocs.io/en/stable/) (PIL, v11.0.0): For image processing.
 - [dateutil](https://dateutil.readthedocs.io/en/stable/) (v2.9.0.post0): For advanced date manipulations.
 - [cryptography](https://cryptography.io/en/latest/) (v44.0.0): For secure encryption and decryption.
 
@@ -48,3 +48,70 @@ This project is licensed under the **[GNU General Public License (GPL)](https://
 1. Ensure `git` is installed:
    ```bash
    sudo apt install git
+   ```
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/DannyDzNuts/No-More-Running.git
+   ```
+3. Navigate to the project directory:
+   ```bash
+   cd No-More-Running
+   ```
+4. Create a virtual environment (optional but recommended):
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+5. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+6. Run the main script:
+   ```bash
+   python3 no_more_running.pyw
+   ```
+
+### Windows Installation
+1. Download and install Git for Windows from [git-scm.com](https://git-scm.com/).
+2. Clone the repository:
+   ```cmd
+   git clone https://github.com/DannyDzNuts/No-More-Running.git
+   ```
+3. Navigate to the project directory:
+   ```cmd
+   cd No-More-Running
+   ```
+4. Create a virtual environment (optional but recommended):
+   ```cmd
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+5. Install the required dependencies:
+   ```cmd
+   pip install -r requirements.txt
+   ```
+6. Run the main script:
+   ```cmd
+   python no_more_running.pyw
+   ```
+
+---
+
+## Credits
+
+- Python's vibrant community for maintaining the libraries that made this project possible.
+- [UXWing](https://uxwing.com/) for providing icons.
+- ChatGPT for assistance with learning concepts, debugging, and building this README.
+
+---
+
+## Author
+
+**Daniel Blake**
+
+- Email: [daniel.blake.professional@protonmail.com](mailto:daniel.blake.professional@protonmail.com)
+- GitHub: [DannyDzNuts](https://github.com/DannyDzNuts)
+
+---
+
+Made with ❤️ by Daniel Blake.
