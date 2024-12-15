@@ -13,6 +13,8 @@ RESOURCES_DIR = os.path.join('.', 'resources')
 REQUIREMENTS_FILE = os.path.join(PROJECT_DIR, "requirements.txt")
 MAIN_PROGRAM = os.path.join(PROJECT_DIR, "no_more_running.pyw")
 
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 # Helper Functions
 def run_command(command, shell=True, silent=False):
     """Runs a system command and exits on failure."""
