@@ -101,7 +101,48 @@ class ContentPanel(tk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.bind("<Enter>", self._bind_mouse_wheel)
         self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
+
+        labels = [
+            ('lbl_section_GUI', 'GUI', _section_font),
+            ('lbl_section_CLIENT', 'NETWORKING', _section_font),
+            ('lbl_section_SECRETS', 'SECRETS', _section_font),
+            ('lbl_client_name', 'Client Name:', _sub_font),
+            ('lbl_client_id', 'Client ID:', _sub_font),
+            ('lbl_client_password', 'Client Password:', _sub_font),
+            ('lbl_client_audience', 'Client Group:', _sub_font),
+            ('lbl_client_position', 'Client Sub Group:', _sub_font),
+            ('lbl_broker_ip', 'Broker IP:', _sub_font),
+            ('lbl_broker_port', 'Broker Port:', _sub_font),
+            ('lbl_primary_psk', 'Primary PSK:', _sub_font),
+            ('lbl_primary_psk_exp', 'Primary PSK Exp:', _sub_font),
+            ('lbl_primary_psk_exp_val', '', _sub_font),
+            ('lbl_backup_psk', 'Backup PSK:', _sub_font),
+        ]
+
+        for var_name, text, font in labels:
+            setattr(self, var_name, tk.Label(text=text, font=font))
     
+        mapping = {
+            'client_name': 'val_client_name',
+            'client_id': 'val_client_id',
+            'client_audience': 'val_client_audience',
+            'client_position': 'val_client_position',
+            'main_object_name': 'val_main_obj_name',
+            'main_obj_subtitle': 'val_main_obj_subtitle',
+            'main_flags_enabled': 'val_main_flags_enabled',
+            'main_obj_flag_a_name': 'val_main_obj_flag_a_name',
+            'main_obj_flag_b_name': 'val_main_obj_flag_b_name',
+            'secondary_object_name': 'val_secondary_obj_name',
+            'secondary_flag_a_name': 'val_sec_flag_a_name',
+            'secondary_flag_b_name': 'val_sec_flag_b_name',
+            'secondary_flags_enabled': 'val_sec_flags_enabled',
+            'enable_masking': 'enable_masking',
+            'debug': 'enable_debug'
+        }
+
+        for key, attr in mapping.items():
+            setattr(self, attr, local_state['config'][key])
+            
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
 
@@ -553,36 +594,47 @@ class SettingsPanel(tk.Frame):
         self.canvas.bind("<Enter>", self._bind_mouse_wheel)
         self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
         
-        self.lbl_section_GUI = tk.Label(text = 'GUI')
-        self.lbl_section_CLIENT = tk.Label(text = 'NETWORKING')
-        self.lbl_section_SECRETS = tk.Label(text = 'SECRETS')
-        self.lbl_client_name = tk.Label(text = 'Client Name:')
-        self.lbl_client_id = tk.Label(text = 'Client ID:')
-        self.lbl_client_password = tk.Label(text = 'Client Password:')
-        self.lbl_client_audience = tk.Label(text = 'Client Group:')
-        self.lbl_client_position = tk.Label(text = 'Client Sub Group:')
-        self.lbl_broker_ip = tk.Label(text = 'Broker IP:')
-        self.lbl_broker_port = tk.Label(text = 'Broker Port:')
-        self.lbl_primary_psk = tk.Label(text = 'Primary PSK:')
-        self.lbl_primary_psk_exp = tk.Label(text = 'Primary PSK Exp:')
-        self.lbl_primary_psk_exp_val = tk.Label(text = '')
-        self.lbl_backup_psk = tk.Label(text = 'Backup PSK:')
+        labels = [
+            ('lbl_section_GUI', 'GUI', _section_font),
+            ('lbl_section_CLIENT', 'NETWORKING', _section_font),
+            ('lbl_section_SECRETS', 'SECRETS', _section_font),
+            ('lbl_client_name', 'Client Name:', _sub_font),
+            ('lbl_client_id', 'Client ID:', _sub_font),
+            ('lbl_client_password', 'Client Password:', _sub_font),
+            ('lbl_client_audience', 'Client Group:', _sub_font),
+            ('lbl_client_position', 'Client Sub Group:', _sub_font),
+            ('lbl_broker_ip', 'Broker IP:', _sub_font),
+            ('lbl_broker_port', 'Broker Port:', _sub_font),
+            ('lbl_primary_psk', 'Primary PSK:', _sub_font),
+            ('lbl_primary_psk_exp', 'Primary PSK Exp:', _sub_font),
+            ('lbl_primary_psk_exp_val', '', _sub_font),
+            ('lbl_backup_psk', 'Backup PSK:', _sub_font),
+        ]
+
+        for var_name, text, font in labels:
+            setattr(self, var_name, tk.Label(text=text, font=font))
+
         
-        self.val_client_name = local_state['config']['client_name']
-        self.val_client_id = local_state['config']['client_id']
-        self.val_client_audience = local_state['config']['client_audience']
-        self.val_client_position = local_state['config']['client_position']
-        self.val_main_obj_name = local_state['config']['main_object_name']
-        self.val_main_obj_subtitle = local_state['config']['main_obj_subtitle']
-        self.val_main_flags_enabled = local_state['config']['main_flags_enabled']
-        self.val_main_obj_flag_a_name = local_state['config']['main_obj_flag_a_name']
-        self.val_main_obj_flag_b_name = local_state['config']['main_obj_flag_b_name']
-        self.val_sec_obj_name = local_state['config']['sec_object_name']
-        self.val_sec_flag_a_name = local_state['config']['sec_flag_a_name']
-        self.val_sec_flag_b_name = local_state['config']['sec_flag_b_name']
-        self.val_sec_flags_enabled = local_state['config']['sec_flags_enabled']
-        self.enable_masking = local_state['config']['enable_masking']
-        self.enable_debug = local_state['config']['enable_debug']
+        mapping = {
+            'client_name': 'val_client_name',
+            'client_id': 'val_client_id',
+            'client_audience': 'val_client_audience',
+            'client_position': 'val_client_position',
+            'main_object_name': 'val_main_obj_name',
+            'main_obj_subtitle': 'val_main_obj_subtitle',
+            'main_flags_enabled': 'val_main_flags_enabled',
+            'main_obj_flag_a_name': 'val_main_obj_flag_a_name',
+            'main_obj_flag_b_name': 'val_main_obj_flag_b_name',
+            'secondary_object_name': 'val_secondary_obj_name',
+            'secondary_flag_a_name': 'val_sec_flag_a_name',
+            'secondary_flag_b_name': 'val_sec_flag_b_name',
+            'secondary_flags_enabled': 'val_sec_flags_enabled',
+            'enable_masking': 'enable_masking',
+            'enable_debug': 'enable_debug'
+        }
+
+        for key, attr in mapping.items():
+            setattr(self, attr, local_state['config'][key])
         
         def _bind_mouse_wheel(self, event):
             self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
