@@ -464,7 +464,7 @@ class ContentObject(tk.Frame):
         if platform.system() == "Linux":
             _icon_path = os.path.join(IMG_DIR, 'logo.png')
             _icon = PhotoImage(file = _icon_path)
-            self.iconphoto(True, _icon)
+            # self.iconphoto(True, _icon)
         else:
             self.iconbitmap(ICO_PATH)
 
@@ -1256,12 +1256,12 @@ def tk_thread():
 
     min_sidebar_width = int(_root_min_width / 12)
     max_sidebar_width = int(_root_max_width / 8)
-    print('window res defined')
+
     main_content_panel = ContentPanel(root)
     secondary_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel=main_content_panel, min_width=min_sidebar_width, max_width=max_sidebar_width)
-    print('tk obj instantiated')
+
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
