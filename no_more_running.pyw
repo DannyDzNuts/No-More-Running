@@ -1440,25 +1440,7 @@ def app_start():
         logic_thread_obj.start()
 
     tk_thread()
-    
-def activate_virtualenv():
-    """Activates the virtual environment if not already active."""
-    if not os.getenv('VIRTUAL_ENV'):  # Check if already in a virtual environment
-        venv_dir = os.path.join(os.path.dirname(__file__), 'venv')
-        if os.name == 'nt':  # Windows
-            activate_script = os.path.join(venv_dir, 'Scripts', 'activate_this.py')
-        else:  # Linux/Mac
-            activate_script = os.path.join(venv_dir, 'bin', 'activate_this.py')
-
-        if os.path.exists(activate_script):
-            print("Activating virtual environment...")
-            with open(activate_script) as f:
-                exec(f.read(), {'__file__': activate_script})
-        else:
-            print("Error: Virtual environment not found.")
-            sys.exit(1)
 
 if __name__ == '__main__':
-    activate_virtualenv()
     app_start()
     exit(0)
