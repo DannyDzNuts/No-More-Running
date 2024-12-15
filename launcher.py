@@ -46,6 +46,8 @@ def ensure_git():
             print("        Git installed successfully.")
         else:
             run_command("sudo apt update && sudo apt install -y git")
+    else:
+        print("    Git is already installed.")
 
 def clone_or_update_repo():
     """Clones or updates the repository."""
@@ -104,7 +106,7 @@ def activate_and_launch():
         if platform.system() == "Windows"
         else os.path.join(VENV_DIR, "bin", "python")  # Linux/Mac
     )
-    
+
     run_command(f"{python_path} {MAIN_PROGRAM}")
 
 def main():
