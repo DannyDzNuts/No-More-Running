@@ -1221,14 +1221,14 @@ def tk_thread():
     _screen_width = root.winfo_screenwidth()
     _screen_height = root.winfo_screenheight()
     _root_fullscreen = local_state['config']['fullscreen']
-    
+    print('tk vars defined')
     if platform.system() == "Linux":
         _icon_path = os.path.join(IMG_DIR, 'logo.png')
         _icon = PhotoImage(file = _icon_path)
         root.iconphoto(True, _icon)
     else:
         root.iconbitmap(ICO_PATH)
-
+    print('ico good')
     if _screen_height < _root_min_height or _screen_width < _root_min_width:
         exit(0)
 
@@ -1256,12 +1256,12 @@ def tk_thread():
 
     min_sidebar_width = int(_root_min_width / 12)
     max_sidebar_width = int(_root_max_width / 8)
-
+    print('window res defined')
     main_content_panel = ContentPanel(root)
     secondary_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel=main_content_panel, min_width=min_sidebar_width, max_width=max_sidebar_width)
-
+    print('tk obj instantiated')
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
@@ -1269,7 +1269,7 @@ def tk_thread():
     main_content_panel.grid(row=0, column=1, sticky="nsew")
     secondary_content_panel.grid(row=0, column=1, sticky="nsew")
     secondary_content_panel.grid_remove()  # Start with secondary panel hidden
-
+    print('tk objs placed')
     # Bind MouseWheel to the main panel on startup
     root.bind("<MouseWheel>", main_content_panel._on_mouse_wheel)
 
