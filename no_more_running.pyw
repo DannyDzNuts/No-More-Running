@@ -460,7 +460,7 @@ class ContentObject(tk.Frame):
         _notif_win.configure(bg = local_state['side_bg_color'])
         _sound_event = threading.Event()
 
-        if os.platform == "Linux":
+        if platform.system() == "Linux":
             _icon = PhotoImage(file = ICO_PATH)
             root.iconphoto(True, _icon)
         else:
@@ -1219,7 +1219,7 @@ def tk_thread():
     _screen_height = root.winfo_screenheight()
     _root_fullscreen = local_state['config']['fullscreen']
     
-    if os.platform == "Linux":
+    if platform.system() == "Linux":
         _icon = PhotoImage(file = ICO_PATH)
         root.iconphoto(True, _icon)
     else:
