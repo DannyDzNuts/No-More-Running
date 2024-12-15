@@ -55,7 +55,7 @@ import secrets
 import random
 import tkinter as tk
 
-from tkinter import Button, Label, Toplevel, messagebox
+from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
 from datetime import datetime
 from queue import Queue, Empty
