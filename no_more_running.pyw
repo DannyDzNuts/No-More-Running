@@ -70,10 +70,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes # v
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
-with open(os.devnull, 'w') as fnull:
-    with redirect_stdout(fnull), redirect_stderr(fnull):
-        pygame.init()
-        
 PROG_VER = '4.25_a'
 RESOURCES_DIR = os.path.join('.', 'resources')
 IMG_DIR = os.path.join(RESOURCES_DIR, 'images')
@@ -87,6 +83,8 @@ lock = threading.Lock()
 config_initialized = threading.Event() # Prevents race condition with logic / mqtt threads at start of program
 
 pygame.mixer.init()
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1' # Disables pygame support message
 
 class ContentPanel(tk.Frame):
     def __init__(self, parent, *args, **kwargs):
