@@ -462,7 +462,7 @@ class ContentObject(tk.Frame):
         _sound_event = threading.Event()
 
         if platform.system() == "Linux":
-            _icon = PhotoImage(file = ICO_PATH)
+            _icon = os.path.join(IMG_DIR, 'logo.png')
             root.iconphoto(True, _icon)
         else:
             root.iconbitmap(ICO_PATH)
@@ -1221,7 +1221,7 @@ def tk_thread():
     _root_fullscreen = local_state['config']['fullscreen']
     
     if platform.system() == "Linux":
-        _icon = PhotoImage(file = ICO_PATH)
+        _icon = os.path.join(IMG_DIR, 'logo.png')
         root.iconphoto(True, _icon)
     else:
         root.iconbitmap(ICO_PATH)
