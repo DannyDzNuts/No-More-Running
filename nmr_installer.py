@@ -81,7 +81,8 @@ def setup_windows():
     run_command("venv\\Scripts\\activate && pip install -r requirements.txt", shell=True)
 
     print("\nInstallation complete! To run the project, use:")
-    print(f"call {os.path.join(PROJECT_DIR, 'venv\\Scripts\\activate')} && python no_more_running.pyw")
+    print(f"call {os.path.join(PROJECT_DIR, r'venv\\Scripts\\activate')} && python no_more_running.pyw")
+
 
 # Main Execution
 if __name__ == "__main__":
