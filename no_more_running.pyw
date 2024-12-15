@@ -464,9 +464,9 @@ class ContentObject(tk.Frame):
         if platform.system() == "Linux":
             _icon_path = os.path.join(IMG_DIR, 'logo.png')
             _icon = PhotoImage(file = _icon_path)
-            root.iconphoto(True, _icon)
+            self.iconphoto(True, _icon)
         else:
-            root.iconbitmap(ICO_PATH)
+            self.iconbitmap(ICO_PATH)
 
         _geo_x = int(local_state['screen_width'] * 0.5)
         _geo_y = int(local_state['screen_height'] * 0.25)
@@ -1207,7 +1207,7 @@ def logic_thread():
         _check_queue()
 
 def tk_thread():
-    print('tk running')
+
     global local_state
 
     root = tk.Tk()
@@ -1221,14 +1221,14 @@ def tk_thread():
     _screen_width = root.winfo_screenwidth()
     _screen_height = root.winfo_screenheight()
     _root_fullscreen = local_state['config']['fullscreen']
-    print('tk vars defined')
+    
     if platform.system() == "Linux":
         _icon_path = os.path.join(IMG_DIR, 'logo.png')
         _icon = PhotoImage(file = _icon_path)
         root.iconphoto(True, _icon)
     else:
         root.iconbitmap(ICO_PATH)
-    print('ico good')
+
     if _screen_height < _root_min_height or _screen_width < _root_min_width:
         exit(0)
 
@@ -1269,7 +1269,7 @@ def tk_thread():
     main_content_panel.grid(row=0, column=1, sticky="nsew")
     secondary_content_panel.grid(row=0, column=1, sticky="nsew")
     secondary_content_panel.grid_remove()  # Start with secondary panel hidden
-    print('tk objs placed')
+
     # Bind MouseWheel to the main panel on startup
     root.bind("<MouseWheel>", main_content_panel._on_mouse_wheel)
 
@@ -1286,7 +1286,7 @@ def tk_thread():
         (0, 77, 255),   # Blue
         (117, 7, 135)   # Violet
     ]
-    print('root created')
+
 
     def _interpolate_color(color1, color2, factor):
         r1, g1, b1 = color1
@@ -1319,7 +1319,7 @@ def tk_thread():
     root.mainloop()
 
 def app_start():
-    print('App starting')
+
     global local_state
 
     local_state = {
@@ -1437,7 +1437,7 @@ def app_start():
         }
     }
 
-    print('Major dictionaries are good')
+
     selected_theme = local_state['config']['theme']
     theme_colors = themes.get(selected_theme, themes['light'])
     local_state.update(theme_colors)
@@ -1445,7 +1445,6 @@ def app_start():
     mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True)
     logic_thread_obj = threading.Thread(target = logic_thread, daemon = True)
 
-    print('Threads created, vars defined')
     config_initialized.wait(timeout = 30)
     if not config_initialized.is_set():
         with open(LOG_FILE, 'a') as file:
@@ -1455,7 +1454,7 @@ def app_start():
     else:
         mqtt_thread_obj.start()
         logic_thread_obj.start()
-    print("config init'd")
+
     tk_thread()
 
 if __name__ == '__main__':
