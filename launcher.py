@@ -92,12 +92,18 @@ def ignore_venv():
             content = gitignore.readlines()
             if venv_entry not in content:
                 gitignore.write(venv_entry)
+                print("    Adding /venv entry to .gitignore")
+            else:
+                print("    Git already ignores /venv")
     else:
         with open(gitignore_path, "w") as gitignore:
             gitignore.write(venv_entry)
+        print("    Added /venv entry to .gitignore")
 
-    print("    Added 'venv/' to .gitignore.")
-    run_command("git rm -r --cached venv", shell=True, silent=True)
+    # Attempt to untrack the venv directory
+    result = subprocess.run("git ls-files --error-unmatch venv", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode == 0:
+        run_command("git rm -r --cached venv", shell=True, silent=True)
 
 def activate_and_launch():
     """Activates the virtual environment and launches the main program."""
