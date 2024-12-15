@@ -31,7 +31,44 @@
             }
         }
 
-        h1,
+        .title-banner {
+            text-align: center;
+            padding: 50px 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 3px solid #569cd6;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 1s ease-out;
+        }
+
+        .title-banner h1 {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #4ec9b0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+            margin: 0;
+        }
+
+        .title-banner h2 {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: #dcdcdc;
+            margin: 10px 0 0 0;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         h2,
         h3 {
             color: #569cd6;
@@ -110,39 +147,25 @@
             border-top: 1px solid #3c3c3c;
             margin-top: 40px;
         }
-
-        .badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 5px;
-            background-color: #4ec9b0;
-            color: #1e1e1e;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
     </style>
 </head>
 
 <body>
-    <h1>No More Running</h1>
-    <section>
-        <p>A program designed to streamline communication between different workstations in a restaurant environment.
-            Its high customizability enables adaptation to other industries, making it versatile and impactful.</p>
-    </section>
+    <div class="title-banner">
+        <h1>No More Running</h1>
+        <h2>Streamlining workflows, enhancing communication, and boosting efficiency</h2>
+    </div>
 
     <section>
         <h2>About the Project</h2>
-        <p>This project was designed and developed by Daniel Blake as a passion project. It leverages Python's
-            capabilities alongside several powerful libraries to deliver a robust and efficient solution. Initially
-            developed for restaurant workflows, its potential for other industries quickly became evident. With high
-            customizability, it can cater to diverse use cases.</p>
+        <p>This project was created to solve real-world workflow challenges, combining a passion for coding with the
+            desire to make systems more efficient.</p>
 
         <h3>Key Features</h3>
         <ul>
             <li><strong>Fast Communication</strong>: Lightweight communication over a brokered MQTT network.</li>
             <li><strong>Customizability</strong>: Easily adaptable to fit various industry needs.</li>
-            <li><strong>Lightweight Security</strong>: Provides basic security to prevent misuse by laypeople (not
-                designed for sensitive data).</li>
+            <li><strong>Secure Operations</strong>: Includes encryption features for sensitive data management.</li>
         </ul>
     </section>
 
@@ -152,36 +175,29 @@
 
         <h3>Standard Libraries</h3>
         <ul>
-            <li><strong>configparser</strong>: For reading and managing configuration files.</li>
-            <li><strong>os</strong>: To handle file and directory operations.</li>
-            <li><strong>time</strong>: For time-related functions.</li>
-            <li><strong>threading</strong>: To enable concurrent execution of tasks.</li>
-            <li><strong>hmac</strong> and <strong>hashlib</strong>: For cryptographic operations.</li>
-            <li><strong>secrets</strong>: To generate secure tokens and passwords.</li>
-            <li><strong>random</strong>: For random number generation.</li>
-            <li><strong>tkinter</strong>: To create the graphical user interface (GUI).</li>
+            <li><a href="https://docs.python.org/3/library/configparser.html" target="_blank">configparser</a></li>
+            <li><a href="https://docs.python.org/3/library/os.html" target="_blank">os</a></li>
+            <li><a href="https://docs.python.org/3/library/time.html" target="_blank">time</a></li>
+            <li><a href="https://docs.python.org/3/library/threading.html" target="_blank">threading</a></li>
+            <li><a href="https://docs.python.org/3/library/hmac.html" target="_blank">hmac</a>, <a
+                    href="https://docs.python.org/3/library/hashlib.html" target="_blank">hashlib</a></li>
+            <li><a href="https://docs.python.org/3/library/secrets.html" target="_blank">secrets</a></li>
+            <li><a href="https://docs.python.org/3/library/random.html" target="_blank">random</a></li>
+            <li><a href="https://docs.python.org/3/library/tkinter.html" target="_blank">tkinter</a></li>
         </ul>
 
         <h3>Third-Party Libraries</h3>
         <ul>
-            <li><strong>paho.mqtt.client</strong> (v1.6.1): For MQTT messaging.</li>
-            <li><strong>pygame</strong> (v2.6.1): For multimedia functionality, including audio playback.</li>
-            <li><strong>Pillow</strong> (PIL, v11.0.0): To handle image processing and manipulation.</li>
-            <li><strong>dateutil.relativedelta</strong> (v2.9.0.post0): For advanced date manipulations.</li>
-            <li><strong>cryptography</strong> (v44.0.0): For secure encryption and decryption operations.</li>
-        </ul>
-    </section>
-
-    <section>
-        <h2>Author</h2>
-        <ul>
-            <li><strong>Daniel Blake</strong></li>
-            <ul>
-                <li>Email: <a
-                        href="mailto:daniel.blake.professional@protonmail.com">daniel.blake.professional@protonmail.com</a>
-                </li>
-                <li>Sole programmer and designer of this project.</li>
-            </ul>
+            <li><a href="https://www.eclipse.org/paho/" target="_blank">paho.mqtt.client</a> (v1.6.1): For MQTT
+                messaging.</li>
+            <li><a href="https://www.pygame.org/" target="_blank">pygame</a> (v2.6.1): For multimedia functionality.
+            </li>
+            <li><a href="https://pillow.readthedocs.io/en/stable/" target="_blank">Pillow</a> (PIL, v11.0.0): For image
+                processing.</li>
+            <li><a href="https://dateutil.readthedocs.io/en/stable/" target="_blank">dateutil.relativedelta</a>
+                (v2.9.0.post0): For advanced date manipulations.</li>
+            <li><a href="https://cryptography.io/en/latest/" target="_blank">cryptography</a> (v44.0.0): For secure
+                encryption and decryption.</li>
         </ul>
     </section>
 
@@ -189,50 +205,74 @@
         <h2>License</h2>
         <p>This project is licensed under the <strong>GNU General Public License (GPL)</strong>. You are free to use,
             modify, and distribute this software, provided that any derivatives are also licensed under the GPL.</p>
-        <p>For more details, see the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU GPL documentation</a>.
+        <p>For more details, see the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html" target="_blank">GNU GPL
+                documentation</a>.
         </p>
     </section>
 
     <section>
         <h2>Getting Started</h2>
-        <h3>Prerequisites</h3>
-        <p>Ensure you have the following installed on your system:</p>
-        <ul>
-            <li>Python 3.x</li>
-            <li>Required Python libraries:
-                <pre><code>pip install paho-mqtt pygame pillow python-dateutil cryptography</code></pre>
-            </li>
-        </ul>
-
-        <h3>Installation</h3>
+        <h3>Linux Installation</h3>
         <ol>
+            <li>Ensure `git` is installed:
+                <pre><code>sudo apt install git</code></pre>
+            </li>
             <li>Clone the repository:
-                <pre><code>git clone https://github.com/your-repository/no-more-running.git</code></pre>
-                <p>Note: If you don’t have a GitHub repository, you can share the project as a zip file.</p>
+                <pre><code>git clone https://github.com/DannyDzNuts/No-More-Running.git</code></pre>
             </li>
             <li>Navigate to the project directory:
-                <pre><code>cd no-more-running</code></pre>
+                <pre><code>cd No-More-Running</code></pre>
+            </li>
+            <li>Create a virtual environment (optional but recommended):
+                <pre><code>python3 -m venv venv</code></pre>
+                <p>Activate the virtual environment:</p>
+                <pre><code>source venv/bin/activate</code></pre>
+            </li>
+            <li>Install the required dependencies:
+                <pre><code>pip install -r requirements.txt</code></pre>
             </li>
             <li>Run the main script:
-                <pre><code>python main.py</code></pre>
+                <pre><code>python3 no_more_running.pyw</code></pre>
             </li>
         </ol>
-        <p>These steps work on both Windows and Linux. For macOS, additional dependencies (like Homebrew for package
-            management) may be required.</p>
+
+        <h3>Windows Installation</h3>
+        <ol>
+            <li>Download and install Git for Windows from <a href="https://git-scm.com/"
+                    target="_blank">git-scm.com</a>.
+            </li>
+            <li>Clone the repository:
+                <pre><code>git clone https://github.com/DannyDzNuts/No-More-Running.git</code></pre>
+            </li>
+            <li>Navigate to the project directory:
+                <pre><code>cd No-More-Running</code></pre>
+            </li>
+            <li>Create a virtual environment (optional but recommended):
+                <pre><code>python -m venv venv</code></pre>
+                <p>Activate the virtual environment:</p>
+                <pre><code>venv\Scripts\activate</code></pre>
+            </li>
+            <li>Install the required dependencies:
+                <pre><code>pip install -r requirements.txt</code></pre>
+            </li>
+            <li>Run the main script:
+                <pre><code>python no_more_running.pyw</code></pre>
+            </li>
+        </ol>
     </section>
 
     <section>
         <h2>Credits</h2>
         <ul>
-            <li>ChatGPT for helping with learning concepts, debugging, and generating this documentation.</li>
-            <li>Python’s vibrant community for creating and maintaining the libraries that made this project possible.
-            </li>
-            <li>UXWing for providing fantastic icons free of charge.</li>
+            <li>Python's vibrant community for maintaining the libraries that made this project possible.</li>
+            <li>UXWing for providing icons.</li>
+            <li>ChatGPT for assistance with learning concepts and debugging.</li>
         </ul>
     </section>
 
     <footer>
-        Made with 💻 by Daniel Blake. | <a href="mailto:daniel.blake.professional@protonmail.com">Contact</a>
+        Made with ❤️ by Daniel Blake. <a href="mailto:daniel.blake.professional@protonmail.com">Email</a> • <a
+            hreft="https://github.com/DannyDzNuts">GitHub</a>
     </footer>
 </body>
 

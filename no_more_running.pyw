@@ -1,3 +1,49 @@
+# venv: "C:\Users\DannyDzNuts\Desktop\Development\No More Running v0.1\venv\Scripts\activate.bat"
+
+"""
+No More Running
+A tkinter-based program for inter-station communication. Designed for use in restaurants, adapted to the world.
+
+Created by Daniel Blake, 2024
+
+Dependencies:
+    Standard Libraries:
+        - configparser: For reading and managing configuration files.
+        - os: To handle file and directory operations.
+        - time: For time-related functions.
+        - threading: To enable concurrent execution of tasks.
+        - hmac, hashlib: For cryptographic operations.
+        - secrets: To generate secure tokens and passwords.
+        - random: For random number generation.
+        - tkinter: To create the graphical user interface (GUI).
+        - uuid: For generating unique identifiers.
+        - datetime: For working with dates and times.
+        - queue: For thread-safe message passing.
+        - copy: For deep and shallow copy operations.
+
+    Third-Party Libraries:
+        - paho.mqtt.client (v1.6.1): For MQTT messaging.
+        - pygame (v2.6.1): For multimedia functionality, including audio playback.
+        - Pillow (PIL, v11.0.0): For image processing and manipulation.
+        - dateutil.relativedelta (v2.9.0.post0): For advanced date manipulations.
+        - cryptography (v44.0.0): For secure encryption and decryption operations.
+
+Usage:
+    - Run the program with Python 3.11.x or higher.
+    - Ensure the required dependencies are installed (preferably in a virtual environment).
+    - Example: `python3 no_more_running.pyw`
+
+Features:
+    - Fast, Lightweight Communication
+    - Customizability
+    - Lightweight Security - Designed to prevent misuse from laypeople (not designed for sensitive data)
+
+License:
+    This project is licensed under the GNU General Public License (GPL). You are free to use, modify, and distribute this software, provided that any derivatives are also licensed under the GPL.
+
+    For more details, see the GNU GPL documentation.
+"""
+
 import configparser
 import os
 import time
@@ -471,6 +517,9 @@ class ContentObject(tk.Frame):
         
         _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
         _sound_thread.start()
+
+class SettingsObject(tk.Frame):
+    pass
 
 class SideBarButtons(tk.Frame):
     def __init__(self, parent, text, bg_color, width, height = 1, command=None, *args, **kwargs):
@@ -1047,7 +1096,7 @@ def mqtt_thread():
                                 local_state('psk_cipher_text')
                                 ))
 
-            payload = f'{client_id},psk_refr_new_psk,{local_state['psk_cipher_text']}'
+            payload = f'{client_id},psk_refr_new_psk,{local_state["psk_cipher_text"]}'
             _publish(topic, payload)
 
             verification_event.wait(timeout = 30)
