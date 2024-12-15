@@ -44,6 +44,23 @@ def setup_venv():
 
     print("Virtual environment setup complete.")
 
+def ignore_venv():
+    """Ensures the venv directory is excluded from Git tracking."""
+    gitignore_path = os.path.join(PROJECT_DIR, ".gitignore")
+    venv_entry = "venv/\n"
+
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r+") as gitignore:
+            content = gitignore.readlines()
+            if venv_entry not in content:
+                gitignore.write(venv_entry)
+    else:
+        with open(gitignore_path, "w") as gitignore:
+            gitignore.write(venv_entry)
+
+    print("Added 'venv/' to .gitignore.")
+    run_command("git rm -r --cached venv", shell=True)
+
 def setup_linux():
     """Sets up the project on Linux."""
     print("Detected Linux OS. Starting installation...")
@@ -65,6 +82,9 @@ def setup_linux():
 
     # Set up virtual environment
     setup_venv()
+
+    # Ensure venv is ignored by Git
+    ignore_venv()
 
     print("\nInstallation complete! To run the project, use:")
     print(f"source {os.path.join(PROJECT_DIR, 'venv/bin/activate')} && python3 no_more_running.pyw")
@@ -96,6 +116,9 @@ def setup_windows():
 
     # Set up virtual environment
     setup_venv()
+
+    # Ensure venv is ignored by Git
+    ignore_venv()
 
     print("\nInstallation complete! To run the project, use:")
     activate_path = os.path.join(PROJECT_DIR, "venv\\Scripts\\activate")
