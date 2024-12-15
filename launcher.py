@@ -105,8 +105,21 @@ def ignore_venv():
     if result.returncode == 0:
         run_command("git rm -r --cached venv", shell=True, silent=True)
 
+def detect_ssh():
+    """Detects if the script is being run over SSH."""
+    return "SSH_CONNECTION" in os.environ or "SSH_CLIENT" in os.environ
+
+def ensure_display():
+    """Ensures DISPLAY is set when running in SSH."""
+    if detect_ssh():
+        if "DISPLAY" not in os.environ:
+            print("Detected SSH session. Setting DISPLAY environment variable to :0")
+            os.environ["DISPLAY"] = ":0"
+
 def activate_and_launch():
     """Activates the virtual environment and launches the main program."""
+    ensure_display()  # Ensure DISPLAY is set for SSH sessions
+
     python_path = (
         os.path.join(VENV_DIR, "Scripts", "python")  # Windows
         if platform.system() == "Windows"
