@@ -55,6 +55,7 @@ import secrets
 import random
 import tkinter as tk
 
+from contextlib import redirect_stdout, redirect_stderr
 from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
 from datetime import datetime
@@ -69,6 +70,10 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes # v
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
+with open(os.devnull, 'w') as fnull:
+    with redirect_stdout(fnull), redirect_stderr(fnull):
+        pygame.init()
+        
 PROG_VER = '4.25_a'
 RESOURCES_DIR = os.path.join('.', 'resources')
 IMG_DIR = os.path.join(RESOURCES_DIR, 'images')
@@ -101,47 +106,6 @@ class ContentPanel(tk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.bind("<Enter>", self._bind_mouse_wheel)
         self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
-
-        labels = [
-            ('lbl_section_GUI', 'GUI', _section_font),
-            ('lbl_section_CLIENT', 'NETWORKING', _section_font),
-            ('lbl_section_SECRETS', 'SECRETS', _section_font),
-            ('lbl_client_name', 'Client Name:', _sub_font),
-            ('lbl_client_id', 'Client ID:', _sub_font),
-            ('lbl_client_password', 'Client Password:', _sub_font),
-            ('lbl_client_audience', 'Client Group:', _sub_font),
-            ('lbl_client_position', 'Client Sub Group:', _sub_font),
-            ('lbl_broker_ip', 'Broker IP:', _sub_font),
-            ('lbl_broker_port', 'Broker Port:', _sub_font),
-            ('lbl_primary_psk', 'Primary PSK:', _sub_font),
-            ('lbl_primary_psk_exp', 'Primary PSK Exp:', _sub_font),
-            ('lbl_primary_psk_exp_val', '', _sub_font),
-            ('lbl_backup_psk', 'Backup PSK:', _sub_font),
-        ]
-
-        for var_name, text, font in labels:
-            setattr(self, var_name, tk.Label(text=text, font=font))
-    
-        mapping = {
-            'client_name': 'val_client_name',
-            'client_id': 'val_client_id',
-            'client_audience': 'val_client_audience',
-            'client_position': 'val_client_position',
-            'main_object_name': 'val_main_obj_name',
-            'main_obj_subtitle': 'val_main_obj_subtitle',
-            'main_flags_enabled': 'val_main_flags_enabled',
-            'main_obj_flag_a_name': 'val_main_obj_flag_a_name',
-            'main_obj_flag_b_name': 'val_main_obj_flag_b_name',
-            'secondary_object_name': 'val_secondary_obj_name',
-            'secondary_flag_a_name': 'val_sec_flag_a_name',
-            'secondary_flag_b_name': 'val_sec_flag_b_name',
-            'secondary_flags_enabled': 'val_sec_flags_enabled',
-            'enable_masking': 'enable_masking',
-            'debug': 'enable_debug'
-        }
-
-        for key, attr in mapping.items():
-            setattr(self, attr, local_state['config'][key])
             
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
@@ -500,14 +464,15 @@ class ContentObject(tk.Frame):
         _notif_win.resizable(False, False)
         _notif_win.title('Page Request')
         _notif_win.configure(bg = local_state['side_bg_color'])
+        _notif_win.attributes('-topmost', True)
         _sound_event = threading.Event()
 
         if platform.system() == "Linux":
             _icon_path = os.path.join(IMG_DIR, 'logo.png')
             _icon = PhotoImage(file = _icon_path)
-            # self.iconphoto(True, _icon)
+            _notif_win.iconphoto(True, _icon)
         else:
-            self.iconbitmap(ICO_PATH)
+            _notif_win.iconbitmap(ICO_PATH)
 
         _geo_x = int(local_state['screen_width'] * 0.5)
         _geo_y = int(local_state['screen_height'] * 0.25)
