@@ -119,7 +119,7 @@ class ContentPanel(tk.Frame):
             if _active_obj_id in local_state['main_obj_refs']:
                 _active_obj = local_state['main_obj_refs'][_active_obj_id]
             else:
-                _active_obj = local_state['secondary_obj_refs'][_active_obj_id]
+                _active_obj = local_state['sec_obj_refs'][_active_obj_id]
             
             _active_obj.page()
 
@@ -156,7 +156,7 @@ class ContentPanel(tk.Frame):
 
             main_obj.pack(fill='x', padx=0, pady=1)
 
-    def _debug_gen_secondaryobjs(self, number_to_generate=5):
+    def _debug_gen_secobjs(self, number_to_generate=5):
         """Generate and add sample objects to the panel for debugging purposes."""
 
         for _ in range(number_to_generate):
@@ -165,20 +165,20 @@ class ContentPanel(tk.Frame):
             _flag_b = random.choice([True, False])
 
             # Create a new MainObject instance
-            secondary_obj = ContentObject(
+            sec_obj = ContentObject(
                 self.scrollable_frame,
-                mode = 'secondary',
+                mode = 'sec',
                 title_val=_title,
                 flag_a_val=_flag_a,
                 flag_b_val=_flag_b,
             )
 
-            secondary_obj.pack(fill='x', padx=0, pady=1)
+            sec_obj.pack(fill='x', padx=0, pady=1)
 
 class ContentObject(tk.Frame):
     def __init__(self, parent, mode, title_val, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
         super().__init__(parent, bd = 1, relief = 'raised')
-        if not mode in ('main', 'secondary'): return
+        if not mode in ('main', 'sec'): return
 
         self.configure(height = 100)
         self.pack_propagate(False)
@@ -192,7 +192,7 @@ class ContentObject(tk.Frame):
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
         else:
-            self.ref_dict = 'secondary_obj_refs'
+            self.ref_dict = 'sec_obj_refs'
         
         if not subtitle_val is None:
             self.subtitle_enabled = True
@@ -230,9 +230,9 @@ class ContentObject(tk.Frame):
                 _icon_a = Image.open(_icon_a_path).resize((38, 38))
                 _icon_b = Image.open(_icon_b_path).resize((38, 38))
 
-            elif local_state['config']['secondary_flags_enabled']:
-                _icon_a_path = os.path.join(IMG_DIR, 'secondary_flag_a.png')
-                _icon_b_path = os.path.join(IMG_DIR, 'secondary_flag_b.png')
+            elif local_state['config']['sec_flags_enabled']:
+                _icon_a_path = os.path.join(IMG_DIR, 'sec_flag_a.png')
+                _icon_b_path = os.path.join(IMG_DIR, 'sec_flag_b.png')
                 _icon_a = Image.open(_icon_a_path).resize((38, 38))
                 _icon_b = Image.open(_icon_b_path).resize((38, 38))
             
@@ -289,13 +289,13 @@ class ContentObject(tk.Frame):
             _flag_b_name = local_state['config']['main_obj_flag_b_name']
 
 
-        elif mode == 'secondary' and local_state['config']['secondary_flags_enabled']:
-            _flag_a_name = local_state['config']['secondary_obj_flag_a_name']
-            _flag_b_name = local_state['config']['secondary_obj_flag_b_name']
+        elif mode == 'sec' and local_state['config']['sec_flags_enabled']:
+            _flag_a_name = local_state['config']['sec_obj_flag_a_name']
+            _flag_b_name = local_state['config']['sec_obj_flag_b_name']
             
         _mode_flags_map = {
             'main': local_state['config']['main_flags_enabled'],
-            'secondary': local_state['config']['secondary_flags_enabled']
+            'sec': local_state['config']['sec_flags_enabled']
         }
 
         if _mode_flags_map[mode]:
@@ -528,9 +528,68 @@ class ContentObject(tk.Frame):
         _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
         _sound_thread.start()
 
-class SettingsObject(tk.Frame):
+class secContentPanel(tk.Frame):
     pass
 
+class SettingsPanel(tk.Frame):
+    def __init__(self, parent, mode):
+        super().__init__(parent, bd = 1, relief = 'raised')
+        
+        _sub_font = ('Arial', 18)
+        _section_font = ('Arial', 24, 'bold')
+        
+        self.bg_color = local_state['mc_bg_color']
+        self.fg_color = local_state['mc_fg_color']
+        
+        self.canvas = tk.Canvas(self, bg = self.bg_color, highlightthickness = 0)
+        self.scrollable_frame = tk.Frame(self.canvas, bg = self.bg_color)
+        
+        self.scrollable_frame.bind("<Configure>",
+                                   lambda e: self.canvas.configure(scrollregion = self.canvas.bbox('all')))
+        
+        self.canvas_frame = self.canvas.create_window((0, 0), window = self.scrollable_frame, anchor = 'nw')
+        self.canvas.bind("<Configure", lambda e: self.canvas.itemconfig(self.cavas_frame, width = e.width))
+        self.canvas.pack(side = 'left', fill = 'both', expand = True)
+        self.canvas.bind("<Enter>", self._bind_mouse_wheel)
+        self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
+        
+        self.lbl_section_GUI = tk.Label(text = 'GUI')
+        self.lbl_section_CLIENT = tk.Label(text = 'NETWORKING')
+        self.lbl_section_SECRETS = tk.Label(text = 'SECRETS')
+        self.lbl_client_name = tk.Label(text = 'Client Name:')
+        self.lbl_client_id = tk.Label(text = 'Client ID:')
+        self.lbl_client_password = tk.Label(text = 'Client Password:')
+        self.lbl_client_audience = tk.Label(text = 'Client Group:')
+        self.lbl_client_position = tk.Label(text = 'Client Sub Group:')
+        self.lbl_broker_ip = tk.Label(text = 'Broker IP:')
+        self.lbl_broker_port = tk.Label(text = 'Broker Port:')
+        self.lbl_primary_psk = tk.Label(text = 'Primary PSK:')
+        self.lbl_primary_psk_exp = tk.Label(text = 'Primary PSK Exp:')
+        self.lbl_primary_psk_exp_val = tk.Label(text = '')
+        self.lbl_backup_psk = tk.Label(text = 'Backup PSK:')
+        
+        self.val_client_name = local_state['config']['client_name']
+        self.val_client_id = local_state['config']['client_id']
+        self.val_client_audience = local_state['config']['client_audience']
+        self.val_client_position = local_state['config']['client_position']
+        self.val_main_obj_name = local_state['config']['main_object_name']
+        self.val_main_obj_subtitle = local_state['config']['main_obj_subtitle']
+        self.val_main_flags_enabled = local_state['config']['main_flags_enabled']
+        self.val_main_obj_flag_a_name = local_state['config']['main_obj_flag_a_name']
+        self.val_main_obj_flag_b_name = local_state['config']['main_obj_flag_b_name']
+        self.val_sec_obj_name = local_state['config']['sec_object_name']
+        self.val_sec_flag_a_name = local_state['config']['sec_flag_a_name']
+        self.val_sec_flag_b_name = local_state['config']['sec_flag_b_name']
+        self.val_sec_flags_enabled = local_state['config']['sec_flags_enabled']
+        self.enable_masking = local_state['config']['enable_masking']
+        self.enable_debug = local_state['config']['enable_debug']
+        
+        def _bind_mouse_wheel(self, event):
+            self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
+        
+        def _unbind_mouse_wheel(self, event):
+            self.canvas.unbind("<MouseWheel>")
+            
 class SideBarButtons(tk.Frame):
     def __init__(self, parent, text, bg_color, width, height = 1, command=None, *args, **kwargs):
         super().__init__(parent, text=text, width=width, height=height, command=command, bg=bg_color, *args, **kwargs)
@@ -549,7 +608,7 @@ class SideBar(tk.Frame):
         self.main_content_panel = main_content_panel
 
         main_obj_name = local_state['config']['main_object_name']
-        secondary_obj_name = local_state['config']['secondary_object_name']
+        sec_obj_name = local_state['config']['sec_object_name']
 
         # Load and resize an image using Pillow for the logo
         try:
@@ -577,7 +636,7 @@ class SideBar(tk.Frame):
         self.buttons = {
             'minimize': self._create_sidebar_button('Minimize', 'menu.png', command=self._toggle),
             f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', 'show_main_objs.png', command = self._show_main_obj),
-            f'show_{secondary_obj_name.capitalize()}_list': self._create_sidebar_button(f'{secondary_obj_name} List', 'show_secondary_objs.png', command=self._show_secondary_obj),
+            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_obj),
             'create': self._create_sidebar_button('Create', 'create.png', command=self._create_object),
             'modify': self._create_sidebar_button('Modify', 'edit.png', command=self._edit_object),
             'page': self._create_sidebar_button('Page', 'page.png', command=self._page_object),
@@ -642,7 +701,7 @@ class SideBar(tk.Frame):
                 btn.pack(pady = (8, 8), side = 'bottom', anchor = 'center')
 
             elif key in ['generate_objects', 'page_active']:
-                if local_state['config']['debug']:
+                if local_state['config']['enable_debug']:
                     btn.pack(pady = (8, 8), side = 'bottom', anchor = 'center')
                 else:
                     pass
@@ -689,7 +748,7 @@ class SideBar(tk.Frame):
         _main_panel = local_state['mc_panel_ref']
         _sec_panel = local_state['sec_panel_ref']
 
-        # Hide secondary panel
+        # Hide sec panel
         _sec_panel.grid_remove()
 
         # Show main panel
@@ -699,19 +758,19 @@ class SideBar(tk.Frame):
         # Bind MouseWheel to the main panel
         self.master.bind("<MouseWheel>", _main_panel._on_mouse_wheel)
 
-    def _show_secondary_obj(self):
-        """Switch to the secondary content panel."""
+    def _show_sec_obj(self):
+        """Switch to the sec content panel."""
         _main_panel = local_state['mc_panel_ref']
         _sec_panel = local_state['sec_panel_ref']
 
         # Hide main panel
         _main_panel.grid_remove()
 
-        # Show secondary panel
+        # Show sec panel
         _sec_panel.grid()
         _sec_panel.lift()
 
-        # Bind MouseWheel to the secondary panel
+        # Bind MouseWheel to the sec panel
         self.master.bind("<MouseWheel>", _sec_panel._on_mouse_wheel)
 
     def _create_object(self):
@@ -731,12 +790,6 @@ class SideBar(tk.Frame):
     
     def _settings(self):
         pass
-
-class SecondaryContentPanel(tk.Frame):
-    pass
-
-class SettingsPanel(tk.Frame):
-    pass
 
 class InfoPanel(tk.Frame):
     def __init__(self, parent, title, type, subtitle = None, flag_a = None, flag_b = None):
@@ -788,10 +841,10 @@ def generate_default_config(parser):
             'main_obj_flags_enabled': False,
             'main_obj_flag_a_name': 'Dessert',
             'main_obj_flag_b_name': 'Milkshake',
-            'secondary_object_name': '86',
-            'secondary_obj_flag_a_name': 'Limited',
-            'secondary_obj_flag_b_name': 'O/S',
-            'secondary_obj_flags_enabled': False,
+            'sec_object_name': '86',
+            'sec_obj_flag_a_name': 'Limited',
+            'sec_obj_flag_b_name': 'O/S',
+            'sec_obj_flags_enabled': False,
             'enable_masking': True,
             'debug': 'False'
         },
@@ -870,12 +923,12 @@ def get_config():
             'main_flags_enabled': parser.getboolean('GUI', 'main_flags_enabled', fallback = False),
             'main_obj_flag_a_name': parser.get('GUI', 'main_obj_flag_a_name', fallback = 'Dessert'),
             'main_obj_flag_b_name': parser.get('GUI', 'main_obj_flag_b_name', fallback = 'Milkshake'),
-            'secondary_object_name': parser.get('GUI', 'secondary_object_name', fallback = '86'),
-            'secondary_flag_a_name': parser.get('GUI', 'secondary_flag_a_name', fallback = 'Limited'),
-            'secondary_flag_b_name': parser.get('GUI', 'secondary_flag_b_name', fallback = 'O/S'),
-            'secondary_flags_enabled': parser.get('GUI', 'secondary_flags_enabled', fallback = False),
+            'sec_object_name': parser.get('GUI', 'sec_object_name', fallback = '86'),
+            'sec_flag_a_name': parser.get('GUI', 'sec_flag_a_name', fallback = 'Limited'),
+            'sec_flag_b_name': parser.get('GUI', 'sec_flag_b_name', fallback = 'O/S'),
+            'sec_flags_enabled': parser.get('GUI', 'sec_flags_enabled', fallback = False),
             'enable_masking': parser.get('GUI', 'enable_masking', fallback = True),
-            'debug': parser.get('GUI','debug', fallback = False),
+            'enable_debug': parser.get('GUI','debug', fallback = False),
             'broker_ip': parser.get('NETWORK', 'broker_ip', fallback = '192.168.1.1'),
             'broker_port': parser.get('NETWORK', 'broker_port', fallback = '1883'),
             'broker_qos': parser.get('NETWORK', 'broker_qos', fallback = '1'),
@@ -1146,7 +1199,6 @@ def mqtt_thread():
 def logic_thread():
     global local_state
 
-###############################NEED TO CREATE UI#############################
     def _notify_user(_title, _message, _timeout=10_000): # 1,000ms = 1s
         # Displays a non-blocking, default-ok messagebox
         """ def create_messagebox():
@@ -1261,7 +1313,7 @@ def tk_thread():
     max_sidebar_width = int(_root_max_width / 8)
 
     main_content_panel = ContentPanel(root)
-    secondary_content_panel = ContentPanel(root)
+    sec_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel=main_content_panel, min_width=min_sidebar_width, max_width=max_sidebar_width)
 
@@ -1270,14 +1322,14 @@ def tk_thread():
 
     sidebar.grid(row=0, column=0, sticky="ns")
     main_content_panel.grid(row=0, column=1, sticky="nsew")
-    secondary_content_panel.grid(row=0, column=1, sticky="nsew")
-    secondary_content_panel.grid_remove()  # Start with secondary panel hidden
+    sec_content_panel.grid(row=0, column=1, sticky="nsew")
+    sec_content_panel.grid_remove()  # Start with sec panel hidden
 
     # Bind MouseWheel to the main panel on startup
     root.bind("<MouseWheel>", main_content_panel._on_mouse_wheel)
 
     update_local_state('mc_panel_ref', main_content_panel)
-    update_local_state('sec_panel_ref', secondary_content_panel)
+    update_local_state('sec_panel_ref', sec_content_panel)
 
     root.resizable(False, False)
 
@@ -1327,8 +1379,8 @@ def app_start():
 
     local_state = {
         'config':get_config(),
-        'main_obj_refs': {}, # Holds all main and secondary obj references with UUID as key
-        'secondary_obj_refs': {},
+        'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
+        'sec_obj_refs': {},
         'mc_panel_ref': None,
         'sec_panel_ref': None,
         'active_panel': None,
