@@ -36,47 +36,48 @@ def ensure_git():
     """Ensures Git is installed."""
     git_check = subprocess.run("git --version", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if git_check.returncode != 0:
-        print("Git is not installed. Installing Git...")
+        print("    Git is not installed. Installing Git...")
         if platform.system() == "Windows":
             git_installer_url = "https://github.com/git-for-windows/git/releases/download/v2.42.0.windows.1/Git-2.42.0-64-bit.exe"
             git_installer_path = os.path.join(PROJECT_DIR, "git_installer.exe")
             download_file(git_installer_url, git_installer_path)
             run_command(f"{git_installer_path} /VERYSILENT /NORESTART")
             os.remove(git_installer_path)
-            print("Git installed successfully.")
+            print("        Git installed successfully.")
         else:
             run_command("sudo apt update && sudo apt install -y git")
 
 def clone_or_update_repo():
     """Clones or updates the repository."""
     if os.path.exists(PROJECT_DIR):
-        print("Project directory already exists. Pulling latest changes...")
+        print("    Project directory already exists. Installing updates...")
         os.chdir(PROJECT_DIR)
         run_command("git pull", silent=True)
     else:
-        print("Cloning the repository...")
+        print("    Cloning the repository...")
         run_command(f"git clone {REPO_URL} {PROJECT_DIR}", silent=True)
 
 def create_venv():
     """Creates the virtual environment if it doesn't exist."""
     if not os.path.exists(VENV_DIR):
-        print("Creating virtual environment...")
+        print("    Creating virtual environment...")
         if platform.system() == "Windows":
             run_command(f"python -m venv {VENV_DIR}", silent=True)
         else:
             run_command(f"python3 -m venv {VENV_DIR}", silent=True)
     else:
-        print("Virtual environment already exists.")
+        print("    Virtual environment already exists.")
 
 def install_dependencies():
     """Installs required dependencies into the virtual environment."""
+    print('    Gathering already installed dependencies...')
     pip_path = (
         os.path.join(VENV_DIR, "Scripts", "pip")  # Windows
         if platform.system() == "Windows"
         else os.path.join(VENV_DIR, "bin", "pip")  # Linux/Mac
     )
 
-    print("Installing required dependencies...")
+    print("     Installing required dependencies...")
     run_command(f"{pip_path} install -r {REQUIREMENTS_FILE}", silent=True)
 
 def ignore_venv():
@@ -93,7 +94,7 @@ def ignore_venv():
         with open(gitignore_path, "w") as gitignore:
             gitignore.write(venv_entry)
 
-    print("Added 'venv/' to .gitignore.")
+    print("    Added 'venv/' to .gitignore.")
     run_command("git rm -r --cached venv", shell=True, silent=True)
 
 def activate_and_launch():
@@ -103,8 +104,7 @@ def activate_and_launch():
         if platform.system() == "Windows"
         else os.path.join(VENV_DIR, "bin", "python")  # Linux/Mac
     )
-
-    print("Launching the main program...")
+    
     run_command(f"{python_path} {MAIN_PROGRAM}")
 
 def main():
