@@ -1214,8 +1214,8 @@ def tk_thread():
     root.title(f'No More Running v{PROG_VER}')
     root.config(bg='#2B2B2B')
 
-    _root_min_width = 1280
-    _root_min_height = 720
+    _root_min_width = 1024
+    _root_min_height = 600
     _root_max_width = 1920
     _root_max_height = 1080
     _screen_width = root.winfo_screenwidth()
