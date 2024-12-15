@@ -9,8 +9,11 @@ import shutil
 REPO_URL = "https://github.com/DannyDzNuts/No-More-Running.git"
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 VENV_DIR = os.path.join(PROJECT_DIR, "venv")
+RESOURCES_DIR = os.path.join('.', 'resources')
 REQUIREMENTS_FILE = os.path.join(PROJECT_DIR, "requirements.txt")
 MAIN_PROGRAM = os.path.join(PROJECT_DIR, "no_more_running.pyw")
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 # Helper Functions
 def run_command(command, shell=True, silent=False):
@@ -115,8 +118,6 @@ def ensure_display():
         if "DISPLAY" not in os.environ:
             print("Detected SSH session. Setting DISPLAY environment variable to :0")
             os.environ["DISPLAY"] = ":0"
-    elif platform.system() == "Windows":
-        print("Windows detected. DISPLAY variable may not be required.")
 
 def activate_and_launch():
     """Activates the virtual environment and launches the main program."""
@@ -137,8 +138,9 @@ def main():
     ensure_git()
 
     # Clone or update the repository
-    print("Checking repository status...")
-    clone_or_update_repo()
+    if not os.path.exists(os.path.join(RESOURCES_DIR, './disable_updates.txt')):
+        print("Checking repository status...")
+        clone_or_update_repo()
 
     # Ensure virtual environment exists
     print("Ensuring virtual environment exists...")
