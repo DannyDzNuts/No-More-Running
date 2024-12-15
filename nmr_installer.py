@@ -23,6 +23,27 @@ def download_file(url, destination):
     with urllib.request.urlopen(url) as response, open(destination, 'wb') as out_file:
         shutil.copyfileobj(response, out_file)
 
+def setup_venv():
+    """Creates a virtual environment and installs required packages."""
+    print("Setting up virtual environment...")
+
+    # Create the virtual environment
+    if platform.system() == "Windows":
+        run_command("python -m venv venv")
+        activate_path = os.path.join(PROJECT_DIR, "venv\\Scripts\\activate")
+    else:
+        run_command("python3 -m venv venv")
+        activate_path = os.path.join(PROJECT_DIR, "venv/bin/activate")
+
+    # Install required packages
+    print("Installing required packages...")
+    if platform.system() == "Windows":
+        run_command(f"{activate_path} && pip install -r requirements.txt")
+    else:
+        run_command(f"source {activate_path} && pip install -r requirements.txt")
+
+    print("Virtual environment setup complete.")
+
 def setup_linux():
     """Sets up the project on Linux."""
     print("Detected Linux OS. Starting installation...")
@@ -43,9 +64,7 @@ def setup_linux():
         os.chdir(PROJECT_DIR)
 
     # Set up virtual environment
-    print("Setting up virtual environment...")
-    run_command("python3 -m venv venv")
-    run_command("source venv/bin/activate && pip install -r requirements.txt", shell=True)
+    setup_venv()
 
     print("\nInstallation complete! To run the project, use:")
     print(f"source {os.path.join(PROJECT_DIR, 'venv/bin/activate')} && python3 no_more_running.pyw")
@@ -76,15 +95,11 @@ def setup_windows():
         os.chdir(PROJECT_DIR)
 
     # Set up virtual environment
-    print("Setting up virtual environment...")
-    run_command("python -m venv venv")
-    run_command("venv\\Scripts\\activate && pip install -r requirements.txt", shell=True)
+    setup_venv()
 
     print("\nInstallation complete! To run the project, use:")
     activate_path = os.path.join(PROJECT_DIR, "venv\\Scripts\\activate")
     print(f"call {activate_path} && python no_more_running.pyw")
-
-
 
 # Main Execution
 if __name__ == "__main__":
