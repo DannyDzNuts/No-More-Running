@@ -105,13 +105,4 @@ This project is licensed under the **[GNU General Public License (GPL)](https://
 
 ---
 
-## Author
-
-**Daniel Blake**
-
-- Email: [daniel.blake.professional@protonmail.com](mailto:daniel.blake.professional@protonmail.com)
-- GitHub: [DannyDzNuts](https://github.com/DannyDzNuts)
-
----
-
-Made with ❤️ by Daniel Blake.
+Made with ❤️ by Daniel Blake. • daniel.blake.professional@protonmail.com • [GitHub](https://github.com/DannyDzNuts)
