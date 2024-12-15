@@ -46,6 +46,7 @@ License:
 
 import configparser
 import os
+import platform
 import time
 import threading
 import hmac
