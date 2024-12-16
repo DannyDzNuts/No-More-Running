@@ -461,6 +461,7 @@ class ContentObject(tk.Frame):
         _notif_win.title('Page Request')
         _notif_win.configure(bg = local_state['side_bg_color'])
         _notif_win.attributes('-topmost', True)
+        _notif_win.focus_force()
         _sound_event = threading.Event()
 
         if platform.system() == "Linux":
