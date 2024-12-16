@@ -57,7 +57,7 @@ def clone_or_update_repo():
     if os.path.exists(PROJECT_DIR):
         print("    Project directory already exists. Installing updates...")
         os.chdir(PROJECT_DIR)
-        run_command("git pull", silent=True)
+        run_command("git pull origin nightly", silent=True)
     else:
         print("    Cloning the repository...")
         run_command(f"git clone {REPO_URL} {PROJECT_DIR}", silent=True)
