@@ -472,7 +472,7 @@ class ContentObject(tk.Frame):
         message_label = tk.Label(
             overlay,
             text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
-            font=("Arial", 24),
+            font=("Arial", 32),
             bg="#000000",
             fg="#FFFFFF",
             wraplength=500,
@@ -493,7 +493,7 @@ class ContentObject(tk.Frame):
             text="Dismiss",
             bg="#333333",
             fg="#FFFFFF",
-            font=("Arial", 18),
+            font=("Arial", 24),
             command=dismiss,
         )
 
