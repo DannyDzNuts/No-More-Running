@@ -463,7 +463,7 @@ class ContentObject(tk.Frame):
         _notif_win.attributes('-topmost', True)
         _notif_win.focus_force()
 
-        if platform.name == "Linux":
+        if platform.system == "Linux":
             os.system(f"wmctrl -r {_notif_win.wm_title()} -b add,above")
             _notif_win.attributes('-fullscreen', True)
         
