@@ -461,7 +461,7 @@ class ContentObject(tk.Frame):
 
         _sound_event = threading.Event()
 
-"""         if platform.system() == "Linux":
+        """if platform.system() == "Linux":
             _icon_path = os.path.join(IMG_DIR, 'logo.png')
             _icon = PhotoImage(file = _icon_path)
             _notif_win.iconphoto(True, _icon)
@@ -487,40 +487,37 @@ class ContentObject(tk.Frame):
             _notif_win.destroy()
 
         def _play_notify_sound():
-                    _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
-                    if os.path.exists(_sound_path):
-                        iteration = 0
-                        full_iteration = 0
-                        
-
-                        while not _sound_event.is_set():
-                            if full_iteration >= 3: _sound_event.set()
-
-                            if iteration < 3:
-                                try:
-                                    _sound = pygame.mixer.Sound(_sound_path)
-                                    _sound.play()
-                                    iteration += 1
-                                except Exception as e:
-                                    print(e)
-
-                                time.sleep(10)
-
-                            if iteration >= 3:
-                                time.sleep(60)
-                                iteration = 0
-                                full_iteration += 1
-
-                _message_label.pack(pady = 10, padx = 10)
-                _btn_dismiss.pack(pady = 10, padx = 10)  
+            _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
+            if os.path.exists(_sound_path):
+                iteration = 0
+                full_iteration = 0
                 
-                _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
-                _sound_thread.start()
+
+                while not _sound_event.is_set():
+                    if full_iteration >= 3: _sound_event.set()
+
+                    if iteration < 3:
+                        try:
+                            _sound = pygame.mixer.Sound(_sound_path)
+                            _sound.play()
+                            iteration += 1
+                        except Exception as e:
+                            print(e)
+
+                        time.sleep(10)
+
+                    if iteration >= 3:
+                        time.sleep(60)
+                        iteration = 0
+                        full_iteration += 1
+
+            _message_label.pack(pady = 10, padx = 10)
+            _btn_dismiss.pack(pady = 10, padx = 10)  
 
         _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
         _sound_thread.start()
 
- """    def page(self, requestor = 'Debug'):
+        """def page(self, requestor = 'Debug'):
         _notif_win = tk.Toplevel(self)
         _notif_win.resizable(False, False)
         _notif_win.title('Page Request')
