@@ -454,8 +454,73 @@ class ContentObject(tk.Frame):
 
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
-    
-    def page(self, requestor = 'Debug'):
+
+    def page(message, duration = 3000, requestor = 'Debug'):
+        _overlay_win = tk.Frame(self, bg = self.bg_color, alpha = 0.7)
+        _overlay_win.place(relx = 0.5, rely = 0.5, anchor = tk.CENTER)
+
+        _sound_event = threading.Event()
+
+"""         if platform.system() == "Linux":
+            _icon_path = os.path.join(IMG_DIR, 'logo.png')
+            _icon = PhotoImage(file = _icon_path)
+            _notif_win.iconphoto(True, _icon)
+        else:
+            _notif_win.iconbitmap(ICO_PATH) """
+
+        _obj_name = self.lbl_title.cget('text')
+        _obj_reference_name = local_state['config']['main_object_name']
+
+        _message_label = tk.Label(_notif_win, 
+                                 text = f'Page received from {requestor}\n\n{_obj_reference_name}: {_obj_name}',
+                                 font = ('Arial', 24),
+                                 bg = local_state['side_bg_color'],
+                                 fg = local_state['side_fg_color']
+                                 )
+
+        _message_label.pack()
+
+        _overlay_win.after(duration, self._destroy)
+
+        def _destroy():
+            _sound_event.set()
+            _notif_win.destroy()
+
+        def _play_notify_sound():
+                    _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
+                    if os.path.exists(_sound_path):
+                        iteration = 0
+                        full_iteration = 0
+                        
+
+                        while not _sound_event.is_set():
+                            if full_iteration >= 3: _sound_event.set()
+
+                            if iteration < 3:
+                                try:
+                                    _sound = pygame.mixer.Sound(_sound_path)
+                                    _sound.play()
+                                    iteration += 1
+                                except Exception as e:
+                                    print(e)
+
+                                time.sleep(10)
+
+                            if iteration >= 3:
+                                time.sleep(60)
+                                iteration = 0
+                                full_iteration += 1
+
+                _message_label.pack(pady = 10, padx = 10)
+                _btn_dismiss.pack(pady = 10, padx = 10)  
+                
+                _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
+                _sound_thread.start()
+
+        _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
+        _sound_thread.start()
+
+ """    def page(self, requestor = 'Debug'):
         _notif_win = tk.Toplevel(self)
         _notif_win.resizable(False, False)
         _notif_win.title('Page Request')
@@ -534,7 +599,7 @@ class ContentObject(tk.Frame):
         _btn_dismiss.pack(pady = 10, padx = 10)  
         
         _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
-        _sound_thread.start()
+        _sound_thread.start() """
 
 class secContentPanel(tk.Frame):
     pass
