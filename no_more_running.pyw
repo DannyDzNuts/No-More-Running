@@ -455,7 +455,7 @@ class ContentObject(tk.Frame):
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
 
-    def page(self, duration=3000000, requestor="Debug"):
+    def page(self, requestor="Debug"):
         # Get the root window from the parent
         root = self.winfo_toplevel()
 
@@ -496,6 +496,7 @@ class ContentObject(tk.Frame):
             font=("Arial", 18),
             command=dismiss,
         )
+
         dismiss_button.place(relx=0.5, rely=0.6, anchor="center")
 
         # Function to play notification sound
@@ -518,9 +519,6 @@ class ContentObject(tk.Frame):
         # Start the sound thread
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
-
-        # Auto-dismiss the overlay after the specified duration
-        root.after(duration, dismiss)
 
 class secContentPanel(tk.Frame):
     pass
