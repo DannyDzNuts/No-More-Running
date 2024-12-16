@@ -521,10 +521,7 @@ class ContentObject(tk.Frame):
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
 
-class secContentPanel(tk.Frame):
-    pass
-
-class SettingsPanel(tk.Frame):
+class SettingsContent(tk.Frame):
     def __init__(self, parent, mode):
         super().__init__(parent, bd = 1, relief = 'raised')
         
@@ -534,22 +531,9 @@ class SettingsPanel(tk.Frame):
         self.bg_color = local_state['mc_bg_color']
         self.fg_color = local_state['mc_fg_color']
         
-        self.canvas = tk.Canvas(self, bg = self.bg_color, highlightthickness = 0)
-        self.scrollable_frame = tk.Frame(self.canvas, bg = self.bg_color)
-        
-        self.scrollable_frame.bind("<Configure>",
-                                   lambda e: self.canvas.configure(scrollregion = self.canvas.bbox('all')))
-        
-        self.canvas_frame = self.canvas.create_window((0, 0), window = self.scrollable_frame, anchor = 'nw')
-        self.canvas.bind("<Configure", lambda e: self.canvas.itemconfig(self.cavas_frame, width = e.width))
-        self.canvas.pack(side = 'left', fill = 'both', expand = True)
-        self.canvas.bind("<Enter>", self._bind_mouse_wheel)
-        self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
-        
         labels = [
-            ('lbl_section_GUI', 'GUI', _section_font),
-            ('lbl_section_CLIENT', 'NETWORKING', _section_font),
-            ('lbl_section_SECRETS', 'SECRETS', _section_font),
+            ('lbl_section_GUI', 'INTERFACE', _section_font),
+            ('lbl_section_CLIENT', 'ADVANCED', _section_font),
             ('lbl_client_name', 'Client Name:', _sub_font),
             ('lbl_client_id', 'Client ID:', _sub_font),
             ('lbl_client_password', 'Client Password:', _sub_font),
@@ -588,12 +572,8 @@ class SettingsPanel(tk.Frame):
         for key, attr in mapping.items():
             setattr(self, attr, local_state['config'][key])
         
-        def _bind_mouse_wheel(self, event):
-            self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
-        
-        def _unbind_mouse_wheel(self, event):
-            self.canvas.unbind("<MouseWheel>")
-            
+        self.lbl_section_GUI.place(rex = 0.05, rely = 0.05)
+
 class SideBarButtons(tk.Frame):
     def __init__(self, parent, text, bg_color, width, height = 1, command=None, *args, **kwargs):
         super().__init__(parent, text=text, width=width, height=height, command=command, bg=bg_color, *args, **kwargs)
@@ -639,14 +619,14 @@ class SideBar(tk.Frame):
         # Create buttons (with icons and labels for extended mode)
         self.buttons = {
             'minimize': self._create_sidebar_button('Minimize', 'menu.png', command=self._toggle),
-            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', 'show_main_objs.png', command = self._show_main_obj),
-            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_obj),
+            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', 'show_main_objs.png', command = self._show_main_panel),
+            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_panel),
             'create': self._create_sidebar_button('Create', 'create.png', command=self._create_object),
             'modify': self._create_sidebar_button('Modify', 'edit.png', command=self._edit_object),
             'page': self._create_sidebar_button('Page', 'page.png', command=self._page_object),
             'remove': self._create_sidebar_button('Remove', 'delete.png', command=self._delete_object),
             'exit': self._create_sidebar_button('Exit', 'exit.png', command=self._exit_program),
-            'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._settings),
+            'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._show_set_panel),
             'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._debug_gen_mainobjs),
             'page_active': self._create_sidebar_button('Page Active', 'page.png', command = self.main_content_panel._page_active)
         }
@@ -746,13 +726,15 @@ class SideBar(tk.Frame):
         if self.main_content_panel:
             self.main_content_panel.generate_debug_objects()
 
-    def _show_main_obj(self):
+    def _show_main_panel(self):
         """Switch to the main content panel."""
         _main_panel = local_state['mc_panel_ref']
-        _sec_panel = local_state['sec_panel_ref']
+        _active_panel = local_state['active_panel_ref']
 
         # Hide sec panel
-        _sec_panel.grid_remove()
+        _active_panel.grid_remove()
+
+        update_local_state('active_panel_ref', self)
 
         # Show main panel
         _main_panel.grid()
@@ -761,13 +743,15 @@ class SideBar(tk.Frame):
         # Bind MouseWheel to the main panel
         self.master.bind("<MouseWheel>", _main_panel._on_mouse_wheel)
 
-    def _show_sec_obj(self):
+    def _show_sec_panel(self):
         """Switch to the sec content panel."""
-        _main_panel = local_state['mc_panel_ref']
+        _active_panel = local_state['active_panel_ref']
         _sec_panel = local_state['sec_panel_ref']
 
         # Hide main panel
-        _main_panel.grid_remove()
+        _active_panel.grid_remove()
+
+        update_local_state('active_panel_ref', self)
 
         # Show sec panel
         _sec_panel.grid()
@@ -775,6 +759,19 @@ class SideBar(tk.Frame):
 
         # Bind MouseWheel to the sec panel
         self.master.bind("<MouseWheel>", _sec_panel._on_mouse_wheel)
+    
+    def _show_set_panel(self):
+        _settings_panel = local_state['set_panel_ref']
+        _active_panel = local_state['active_panel_ref']
+
+        _active_panel.grid_remove()
+
+        update_local_state('active_panel_ref', self)
+
+        _settings_panel.grid()
+        _settings_panel.lift()
+
+        self.master.bind("<MouseWheel>", _settings_panel._on_mouse_wheel)
 
     def _create_object(self):
         pass
@@ -790,9 +787,6 @@ class SideBar(tk.Frame):
 
     def _exit_program(self):
         exit(0)
-    
-    def _settings(self):
-        pass
 
 class InfoPanel(tk.Frame):
     def __init__(self, parent, title, type, subtitle = None, flag_a = None, flag_b = None):
@@ -1317,22 +1311,27 @@ def tk_thread():
 
     main_content_panel = ContentPanel(root)
     sec_content_panel = ContentPanel(root)
+    settings_content_panel = ContentPanel(root)
 
-    sidebar = SideBar(root, main_content_panel=main_content_panel, min_width=min_sidebar_width, max_width=max_sidebar_width)
+    sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
 
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
     sidebar.grid(row=0, column=0, sticky="ns")
-    main_content_panel.grid(row=0, column=1, sticky="nsew")
-    sec_content_panel.grid(row=0, column=1, sticky="nsew")
-    sec_content_panel.grid_remove()  # Start with sec panel hidden
+    main_content_panel.grid(row = 0, column = 1, stick = 'nsew')
+    sec_content_panel.grid(row = 0, column = 1, stick = 'nsew')
+    settings_content_panel.grid(row = 0, column = 1, stick = 'nsew')
+    sec_content_panel.grid_remove()
+    settings_content_panel.grid_remove()
 
-    # Bind MouseWheel to the main panel on startup
+    update_local_state('active_panel_ref', main_content_panel)
+
     root.bind("<MouseWheel>", main_content_panel._on_mouse_wheel)
 
     update_local_state('mc_panel_ref', main_content_panel)
     update_local_state('sec_panel_ref', sec_content_panel)
+    update_local_state('set_panel_ref', settings_content_panel)
 
     root.resizable(False, False)
 
@@ -1386,7 +1385,8 @@ def app_start():
         'sec_obj_refs': {},
         'mc_panel_ref': None,
         'sec_panel_ref': None,
-        'active_panel': None,
+        'set_panel_ref': None,
+        'active_panel_ref': None,
         'auth_state': False,
         'manual_reconnect': False,
         'side_bg_color': '',
@@ -1504,6 +1504,7 @@ def app_start():
     logic_thread_obj = threading.Thread(target = logic_thread, daemon = True)
 
     config_initialized.wait(timeout = 30)
+
     if not config_initialized.is_set():
         with open(LOG_FILE, 'a') as file:
             _ts = get_timestamp(True)
