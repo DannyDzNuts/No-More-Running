@@ -455,148 +455,72 @@ class ContentObject(tk.Frame):
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
 
-    def page(self, duration = 3000, requestor = 'Debug'):
-        _overlay_win = tk.Frame(self, bg = self.bg_color, alpha = 0.7)
-        _overlay_win.place(relx = 0.5, rely = 0.5, anchor = tk.CENTER)
+    def page(self, duration=3000000, requestor="Debug"):
+        # Get the root window from the parent
+        root = self.winfo_toplevel()
 
-        _sound_event = threading.Event()
+        # Create a semi-transparent full-screen overlay
+        overlay = tk.Frame(root, bg="#000000")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.tkraise()  # Ensure the overlay is above all other widgets
 
-        """if platform.system() == "Linux":
-            _icon_path = os.path.join(IMG_DIR, 'logo.png')
-            _icon = PhotoImage(file = _icon_path)
-            _notif_win.iconphoto(True, _icon)
-        else:
-            _notif_win.iconbitmap(ICO_PATH) """
+        # Add object details
+        obj_name = self.lbl_title.cget("text")
+        obj_reference_name = local_state["config"]["main_object_name"]
 
-        _obj_name = self.lbl_title.cget('text')
-        _obj_reference_name = local_state['config']['main_object_name']
+        # Add a label to display the message
+        message_label = tk.Label(
+            overlay,
+            text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
+            font=("Arial", 24),
+            bg="#000000",
+            fg="#FFFFFF",
+            wraplength=500,
+        )
+        message_label.place(relx=0.5, rely=0.4, anchor="center")
 
-        _message_label = tk.Label(_notif_win, 
-                                 text = f'Page received from {requestor}\n\n{_obj_reference_name}: {_obj_name}',
-                                 font = ('Arial', 24),
-                                 bg = local_state['side_bg_color'],
-                                 fg = local_state['side_fg_color']
-                                 )
+        # Event for sound playback control
+        sound_event = threading.Event()
 
-        _message_label.pack()
+        # Dismiss button functionality
+        def dismiss():
+            sound_event.set()
+            overlay.destroy()
 
-        _overlay_win.after(duration, self._destroy)
+        # Add a dismiss button
+        dismiss_button = tk.Button(
+            overlay,
+            text="Dismiss",
+            bg="#333333",
+            fg="#FFFFFF",
+            font=("Arial", 18),
+            command=dismiss,
+        )
+        dismiss_button.place(relx=0.5, rely=0.6, anchor="center")
 
-        def _destroy():
-            _sound_event.set()
-            _notif_win.destroy()
-
-        def _play_notify_sound():
-            _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
-            if os.path.exists(_sound_path):
+        # Function to play notification sound
+        def play_sound():
+            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
+            if os.path.exists(sound_path):
                 iteration = 0
-                full_iteration = 0
-                
+                while not sound_event.is_set():
+                    if iteration >= 3:  # Play sound up to 3 times
+                        break
+                    try:
+                        sound = pygame.mixer.Sound(sound_path)
+                        sound.play()
+                        time.sleep(10)  # Delay between plays
+                    except Exception as e:
+                        print(f"Error playing sound: {e}")
+                        break
+                    iteration += 1
 
-                while not _sound_event.is_set():
-                    if full_iteration >= 3: _sound_event.set()
+        # Start the sound thread
+        sound_thread = threading.Thread(target=play_sound, daemon=True)
+        sound_thread.start()
 
-                    if iteration < 3:
-                        try:
-                            _sound = pygame.mixer.Sound(_sound_path)
-                            _sound.play()
-                            iteration += 1
-                        except Exception as e:
-                            print(e)
-
-                        time.sleep(10)
-
-                    if iteration >= 3:
-                        time.sleep(60)
-                        iteration = 0
-                        full_iteration += 1
-
-            _message_label.pack(pady = 10, padx = 10)
-            _btn_dismiss.pack(pady = 10, padx = 10)  
-
-        _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
-        _sound_thread.start()
-
-        """def page(self, requestor = 'Debug'):
-        _notif_win = tk.Toplevel(self)
-        _notif_win.resizable(False, False)
-        _notif_win.title('Page Request')
-        _notif_win.configure(bg = local_state['side_bg_color'])
-        _notif_win.attributes('-topmost', True)
-        _notif_win.focus_force()
-
-        if platform.system == "Linux":
-            os.system(f"wmctrl -r {_notif_win.wm_title()} -b add,above")
-            _notif_win.attributes('-fullscreen', True)
-        
-        _sound_event = threading.Event()
-
-        if platform.system() == "Linux":
-            _icon_path = os.path.join(IMG_DIR, 'logo.png')
-            _icon = PhotoImage(file = _icon_path)
-            _notif_win.iconphoto(True, _icon)
-        else:
-            _notif_win.iconbitmap(ICO_PATH)
-
-        _geo_x = int(local_state['screen_width'] * 0.5)
-        _geo_y = int(local_state['screen_height'] * 0.25)
-        _notif_win.geometry(f'{_geo_x}x{_geo_y}')
-
-        _obj_name = self.lbl_title.cget('text')
-        _obj_reference_name = local_state['config']['main_object_name']
-
-        _message_label = tk.Label(_notif_win, 
-                                 text = f'Page received from {requestor}\n\n{_obj_reference_name}: {_obj_name}',
-                                 font = ('Arial', 24),
-                                 bg = local_state['side_bg_color'],
-                                 fg = local_state['side_fg_color']
-                                 )
-        
-        _notif_win.focus_set()
-        _notif_win.grab_set()
-
-        def _destroy():
-            _sound_event.set()
-            _notif_win.destroy()
-
-        _btn_dismiss = tk.Button(_notif_win, text = 'Dismiss', 
-                                bg = local_state['side_bg_color'],
-                                fg = local_state['side_fg_color'],
-                                width = 30,
-                                height = 10,
-                                font = ('Arial', 28),
-                                command = _destroy)
-
-        def _play_notify_sound():
-            _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
-            if os.path.exists(_sound_path):
-                iteration = 0
-                full_iteration = 0
-                
-
-                while not _sound_event.is_set():
-                    if full_iteration >= 3: _sound_event.set()
-
-                    if iteration < 3:
-                        try:
-                            _sound = pygame.mixer.Sound(_sound_path)
-                            _sound.play()
-                            iteration += 1
-                        except Exception as e:
-                            print(e)
-
-                        time.sleep(10)
-
-                    if iteration >= 3:
-                        time.sleep(60)
-                        iteration = 0
-                        full_iteration += 1
-
-        _message_label.pack(pady = 10, padx = 10)
-        _btn_dismiss.pack(pady = 10, padx = 10)  
-        
-        _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
-        _sound_thread.start() """
+        # Auto-dismiss the overlay after the specified duration
+        root.after(duration, dismiss)
 
 class secContentPanel(tk.Frame):
     pass
