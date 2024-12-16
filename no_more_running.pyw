@@ -455,7 +455,7 @@ class ContentObject(tk.Frame):
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
 
-    def page(message, duration = 3000, requestor = 'Debug'):
+    def page(self, message, duration = 3000, requestor = 'Debug'):
         _overlay_win = tk.Frame(self, bg = self.bg_color, alpha = 0.7)
         _overlay_win.place(relx = 0.5, rely = 0.5, anchor = tk.CENTER)
 
