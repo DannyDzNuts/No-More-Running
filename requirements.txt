@@ -5,4 +5,4 @@ pillow==11.0.0
 pycparser==2.22
 pygame==2.6.1
 python-dateutil==2.9.0.post0
-wmctrol==0.5
+wmctrl==0.5
