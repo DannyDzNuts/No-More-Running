@@ -454,82 +454,72 @@ class ContentObject(tk.Frame):
 
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
-    
-    def page(self, requestor = 'Debug'):
-        _notif_win = tk.Toplevel(self)
-        _notif_win.resizable(False, False)
-        _notif_win.title('Page Request')
-        _notif_win.configure(bg = local_state['side_bg_color'])
-        _notif_win.attributes('-topmost', True)
-        _notif_win.focus_force()
-        _sound_event = threading.Event()
 
-        if platform.system() == "Linux":
-            _icon_path = os.path.join(IMG_DIR, 'logo.png')
-            _icon = PhotoImage(file = _icon_path)
-            _notif_win.iconphoto(True, _icon)
-        else:
-            _notif_win.iconbitmap(ICO_PATH)
+    def page(self, requestor="Debug"):
+        # Get the root window from the parent
+        root = self.winfo_toplevel()
 
-        _geo_x = int(local_state['screen_width'] * 0.5)
-        _geo_y = int(local_state['screen_height'] * 0.25)
-        _notif_win.geometry(f'{_geo_x}x{_geo_y}')
+        # Create a semi-transparent full-screen overlay
+        overlay = tk.Frame(root, bg = self.bg_color)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.tkraise()  # Ensure the overlay is above all other widgets
 
-        _obj_name = self.lbl_title.cget('text')
-        _obj_reference_name = local_state['config']['main_object_name']
+        # Add object details
+        obj_name = self.lbl_title.cget("text")
+        obj_reference_name = local_state["config"]["main_object_name"]
 
-        _message_label = tk.Label(_notif_win, 
-                                 text = f'Page received from {requestor}\n\n{_obj_reference_name}: {_obj_name}',
-                                 font = ('Arial', 24),
-                                 bg = local_state['side_bg_color'],
-                                 fg = local_state['side_fg_color']
-                                 )
+        # Add a label to display the message
+        message_label = tk.Label(
+            overlay,
+            text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
+            font=("Arial", 48),
+            bg = self.bg_color,
+            fg = self.fg_color,
+        )
         
-        _notif_win.focus_set()
-        _notif_win.grab_set()
+        message_label.place(relx=0.5, rely=0.4, anchor="center")
 
-        def _destroy():
-            _sound_event.set()
-            _notif_win.destroy()
+        # Event for sound playback control
+        sound_event = threading.Event()
 
-        _btn_dismiss = tk.Button(_notif_win, text = 'Dismiss', 
-                                bg = local_state['side_bg_color'],
-                                fg = local_state['side_fg_color'],
-                                width = 30,
-                                height = 10,
-                                font = ('Arial', 28),
-                                command = _destroy)
+        # Dismiss button functionality
+        def dismiss():
+            sound_event.set()
+            overlay.destroy()
 
-        def _play_notify_sound():
-            _sound_path = os.path.join(RESOURCES_DIR, 'notify.wav')
-            if os.path.exists(_sound_path):
+        # Add a dismiss button
+        dismiss_button = tk.Button(
+            overlay,
+            text="Dismiss",
+            bg="#333333",
+            fg="#FFFFFF",
+            font=("Arial", 36),
+            command=dismiss,
+        )
+
+        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
+
+        # Function to play notification sound
+        def play_sound():
+            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
+            if os.path.exists(sound_path):
                 iteration = 0
-                full_iteration = 0
-                
+                while not sound_event.is_set():
+                    if iteration >= 3:  # Play sound up to 3 times
+                        break
+                    try:
+                        sound = pygame.mixer.Sound(sound_path)
+                        sound.play()
+                        time.sleep(sound.get_length())
+                        time.sleep(10)  # Delay between plays
+                    except Exception as e:
+                        print(f"Error playing sound: {e}")
+                        break
+                    iteration += 1
 
-                while not _sound_event.is_set():
-                    if full_iteration >= 3: _sound_event.set()
-
-                    if iteration < 3:
-                        try:
-                            _sound = pygame.mixer.Sound(_sound_path)
-                            _sound.play()
-                            iteration += 1
-                        except Exception as e:
-                            print(e)
-
-                        time.sleep(10)
-
-                    if iteration >= 3:
-                        time.sleep(60)
-                        iteration = 0
-                        full_iteration += 1
-
-        _message_label.pack(pady = 10, padx = 10)
-        _btn_dismiss.pack(pady = 10, padx = 10)  
-        
-        _sound_thread = threading.Thread(target = _play_notify_sound, daemon = True)
-        _sound_thread.start()
+        # Start the sound thread
+        sound_thread = threading.Thread(target=play_sound, daemon=True)
+        sound_thread.start()
 
 class secContentPanel(tk.Frame):
     pass
@@ -635,16 +625,16 @@ class SideBar(tk.Frame):
         # Create a label to hold the logo and text
         self.image_container = tk.Label(
             self, 
-            image=self.image, 
-            bg=self.bg_color, 
-            text='NMR', 
-            compound='left', 
-            font=('Ariel', 34), 
-            fg=self.fg_color
+            image = self.image, 
+            bg = self.bg_color, 
+            text = 'NMR', 
+            compound = 'left', 
+            font = ('Ariel', 34), 
+            fg = self.fg_color
         )
 
         # Create a spacer frame
-        self.spacer = tk.Frame(self, width=50, height=1, bg=self.bg_color)
+        self.spacer = tk.Frame(self, width = 50, height = 1, bg = self.bg_color)
 
         # Create buttons (with icons and labels for extended mode)
         self.buttons = {
@@ -673,29 +663,28 @@ class SideBar(tk.Frame):
         """Factory function to create buttons with icons and labels."""
         try:
             icon_path = os.path.join(IMG_DIR, icon_filename)
-            icon_image = Image.open(icon_path).resize((38, 38))
+            icon_image = Image.open(icon_path).resize((42, 42))
             icon = ImageTk.PhotoImage(icon_image)
         except FileNotFoundError:
-            icon = tk.PhotoImage(width=24, height=24)
+            icon = tk.PhotoImage(width = 42, height = 42)
 
-        # Create a button with an icon and label text
         button = tk.Button(
             self,
-            text=text,
-            font=("Arial", 16),
-            image=icon,
-            compound='left',
-            padx=5,  # Add padding to control size better
-            pady=5,
+            text = text,
+            font = ("Arial", 16),
+            image = icon,
+            compound = 'left',
+            padx = 5,
+            pady = 5,
+            width = int(self.winfo_width()- 5),
             command=command,
-            bg=self.bg_color,  # Match background color with sidebar
-            fg=self.fg_color,
-            borderwidth=0,  # Remove button border
-            relief='flat',  # Make it look like a label
-            activebackground=self.bg_color  # Ensure active state matches background
+            bg = self.bg_color,
+            fg = self.fg_color,
+            borderwidth = 0,
+            relief = 'flat',
+            activebackground = self.bg_color
         )
 
-        # Keep a reference to the image to prevent garbage collection
         button.icon = icon
         return button
 
@@ -709,7 +698,7 @@ class SideBar(tk.Frame):
                 if local_state['screen_height'] <= 1000:
                     btn.pack(pady = (30, 8), anchor = 'center')
                 else:
-                    btn.pack(pady = (50, 8), anchor='center')
+                    btn.pack(pady = (40, 8), anchor='center')
 
             elif key in ['settings', 'exit']:
                 btn.pack(pady = (8, 8), side = 'bottom', anchor = 'center')
@@ -723,26 +712,26 @@ class SideBar(tk.Frame):
                 btn.pack(pady = (8, 8), anchor='center')
 
     def _minimize(self):
-        self.configure(width=self.current_width)
+        self.configure(width = self.current_width)
         self.is_minimized = True
 
         self.image_container.config(text='')
 
         # Update Sidebar Buttons To Display Icons Only
         for btn in self.buttons.values():
-            btn.config(compound='top', text='')
-            btn.pack_configure(anchor='center')
+            btn.config(compound = 'top', text = '')
+            btn.pack_configure(anchor = 'center')
 
     def _maximize(self):
         """Maximize the sidebar (show icons with labels)."""
-        self.configure(width=self.max_width)
+        self.configure(width = self.max_width)
         self.is_minimized = False
 
         self.image_container.config(text='NMR')
         # Update Sidebar Buttons To Show Icons + Text
         for key, btn in self.buttons.items():
             _label_text = key.replace('_', ' ').title()
-            btn.config(compound='left', text=_label_text)
+            btn.config(compound = 'left', text = _label_text)
             btn.pack_configure(anchor='w')
 
     def _toggle(self):
