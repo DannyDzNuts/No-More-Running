@@ -465,6 +465,7 @@ class ContentObject(tk.Frame):
 
         if plaform.name == "Linux":
             os.system(f"wmctrl -r {_notif_win.wm_title()} -b add,above")
+            _notif_win.attributes('-fullscreen', True)
         
         _sound_event = threading.Event()
 
