@@ -462,6 +462,10 @@ class ContentObject(tk.Frame):
         _notif_win.configure(bg = local_state['side_bg_color'])
         _notif_win.attributes('-topmost', True)
         _notif_win.focus_force()
+
+        if plaform.name == "Linux":
+            os.system(f"wmctrl -r {_notif_win.wm_title()} -b add,above")
+        
         _sound_event = threading.Event()
 
         if platform.system() == "Linux":
