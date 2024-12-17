@@ -972,7 +972,6 @@ def update_local_state(key, value, section=None, sub_section=None):
             else:
                 local_state[key] = value
 
-
 def mqtt_thread():
     '''Handles MQTT client connections, disconnections, authentication, and communications.'''
 
