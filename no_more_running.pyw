@@ -646,6 +646,7 @@ class SideBar(tk.Frame):
             icon_image = Image.open(icon_path).resize((42, 42))
             icon = ImageTk.PhotoImage(icon_image)
         except FileNotFoundError:
+            print(f'Failed: {icon_path}')
             icon = tk.PhotoImage(width = 42, height = 42)
 
         button = tk.Button(
@@ -734,7 +735,7 @@ class SideBar(tk.Frame):
         # Hide sec panel
         _active_panel.grid_remove()
 
-        update_local_state('active_panel_ref', self)
+        update_local_state('active_panel_ref', _main_panel)
 
         # Show main panel
         _main_panel.grid()
@@ -751,7 +752,7 @@ class SideBar(tk.Frame):
         # Hide main panel
         _active_panel.grid_remove()
 
-        update_local_state('active_panel_ref', self)
+        update_local_state('active_panel_ref', _sec_panel)
 
         # Show sec panel
         _sec_panel.grid()
@@ -761,17 +762,17 @@ class SideBar(tk.Frame):
         self.master.bind("<MouseWheel>", _sec_panel._on_mouse_wheel)
     
     def _show_set_panel(self):
-        _settings_panel = local_state['set_panel_ref']
+        _set_panel = local_state['set_panel_ref']
         _active_panel = local_state['active_panel_ref']
 
         _active_panel.grid_remove()
 
-        update_local_state('active_panel_ref', self)
+        update_local_state('active_panel_ref', _set_panel)
 
-        _settings_panel.grid()
-        _settings_panel.lift()
+        _set_panel.grid()
+        _set_panel.lift()
 
-        self.master.bind("<MouseWheel>", _settings_panel._on_mouse_wheel)
+        self.master.bind("<MouseWheel>", _set_panel._on_mouse_wheel)
 
     def _create_object(self):
         pass
