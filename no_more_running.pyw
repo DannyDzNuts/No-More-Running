@@ -121,24 +121,27 @@ class ContentPanel(tk.Frame):
 
     def _handle_selection(self, event):
         """Handle selection after the delay if no dragging occurs."""
-        if not self._is_dragging:
-            widget = event.widget
+        if self._is_dragging:
+            print("Skipping selection because of dragging.")
+            return
 
-            # Traverse the widget hierarchy to find the ContentObject
-            while widget and not isinstance(widget, ContentObject):
-                print(f"Traversing from widget: {widget}")
-                widget = widget.master
+        widget = event.widget
 
-            if widget and isinstance(widget, ContentObject):
-                print(f"Selection handled for widget: {widget}")
-                widget._set_selected(event)
-            else:
-                print("No selectable widget found.")
+        # Traverse the widget hierarchy to find the ContentObject
+        while widget and not isinstance(widget, ContentObject):
+            print(f"Traversing from widget: {widget}")
+            widget = widget.master
+
+        if widget and isinstance(widget, ContentObject):
+            print(f"Selection handled for widget: {widget}")
+            widget._set_selected(event)
+        else:
+            print("No selectable widget found.")
 
     def _on_touch_start(self, event):
         self._start_y = event.y
         self._is_dragging = False
-        print(f"Touch start at {self._start_y}, target widget: {event.widget}")
+        print(f"Touch start detected at Y={self._start_y}, widget={event.widget}")
 
         if self._selection_timer:
             self.after_cancel(self._selection_timer)
@@ -146,16 +149,20 @@ class ContentPanel(tk.Frame):
         self._selection_timer = self.after(self._selection_delay, lambda: self._handle_selection(event))
 
     def _on_touch_scroll(self, event):
+        """Handle scrolling only if dragging is detected."""
         if self._start_y is not None:
             delta_y = event.y - self._start_y
-            print(f"Touch scroll: delta_y={delta_y}, start_y={self._start_y}")
+            print(f"Touch scroll detected: delta_y={delta_y}, start_y={self._start_y}, is_dragging={self._is_dragging}")
 
+            # Check if the user is dragging
             if abs(delta_y) > self._drag_threshold or self._is_dragging:
                 self._is_dragging = True
-                self.canvas.yview_scroll(int(-delta_y / 2), "units")
+                self.canvas.yview_scroll(int(-delta_y / 2), "units")  # Adjust divisor for sensitivity
                 self._start_y = event.y
 
+                # Cancel the selection timer
                 if self._selection_timer:
+                    print("Cancelling selection due to drag.")
                     self.after_cancel(self._selection_timer)
                     self._selection_timer = None
 
@@ -404,7 +411,7 @@ class ContentObject(tk.Frame):
     def propagate_to_parent(self, widget):
         """Bind events to propagate motion and taps to the ContentObject."""
         widget.bind("<B1-Motion>", lambda e: self.content_panel.canvas.event_generate("<B1-Motion>", x=e.x, y=e.y))
-        widget.bind("<Button-1>", lambda e: self._set_selected(e))  # Call _set_selected directly
+        widget.bind("<Button-1>", lambda e: self._set_selected(e))
         print(f"Propagated events for: {widget}")
 
     def _format_time(self):
