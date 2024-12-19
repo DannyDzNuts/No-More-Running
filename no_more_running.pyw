@@ -90,19 +90,33 @@ class ContentPanel(tk.Frame):
 
         _bg_color = local_state['mc_bg_color']
 
-        # Create a canvas within the ContentPanel
         self.canvas = tk.Canvas(self, bg=_bg_color, highlightthickness=0)
         self.scrollable_frame = tk.Frame(self.canvas, bg=_bg_color)
 
         self.scrollable_frame.bind("<Configure>",
-                                    lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+                                   lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
         self.canvas_frame = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_frame, width=e.width))
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.bind("<Enter>", self._bind_mouse_wheel)
-        self.canvas.bind("<Leave>", self._unbind_mouse_wheel)
-            
+
+        # Tracks touch scrolling
+        self._start_y = None
+
+        self.canvas.bind("<Button-1>", self._on_touch_start)
+        self.canvas.bind("<B1-Motion>", self._on_touch_scroll)
+
+    def _on_touch_start(self, event):
+        """Record the initial Y position when touch starts."""
+        self._start_y = event.y
+
+    def _on_touch_scroll(self, event):
+        """Scroll the canvas based on touch drag motion."""
+        if self._start_y is not None:
+            delta_y = self._start_y - event.y
+            self.canvas.yview_scroll(int(delta_y), "units")
+            self._start_y = event.y
+
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
 
