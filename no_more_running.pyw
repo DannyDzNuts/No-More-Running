@@ -106,6 +106,14 @@ class ContentPanel(tk.Frame):
         self.canvas.bind("<Button-1>", self._on_touch_start)
         self.canvas.bind("<B1-Motion>", self._on_touch_scroll)
 
+    def bind_touch_to_child(self, widget):
+        """Bind touch scrolling to a specific widget and its children."""
+        widget.bind("<Button-1>", self._on_touch_start)
+        widget.bind("<B1-Motion>", self._on_touch_scroll)
+
+        for child in widget.winfo_children():
+            self.bind_touch_to_child(child)
+
     def _on_touch_start(self, event):
         """Record the initial Y position when touch starts."""
         self._start_y = event.y
@@ -199,6 +207,9 @@ class ContentObject(tk.Frame):
         self.pack_propagate(False)
         self.bind("<Button-1>", self._set_selected)
 
+        if isinstance(parent.master, ContentPanel):
+            parent.master.bind_touch_to_child(self)
+            
         self.bg_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
         self.fg_color = local_state['mc_fg_color']
         self.is_selected = False
