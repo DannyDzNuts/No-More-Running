@@ -91,7 +91,7 @@ class ContentPanel(tk.Frame):
         _bg_color = local_state['mc_bg_color']
 
         self._start_y = None
-        self._drag_threshold = 5
+        self._drag_threshold = 2
         self._is_dragging = False
 
         self.canvas = tk.Canvas(self, bg=_bg_color, highlightthickness=0)
@@ -125,11 +125,12 @@ class ContentPanel(tk.Frame):
     def _on_touch_scroll(self, event):
         """Handle scrolling only if dragging is detected."""
         if self._start_y is not None:
-            delta_y = abs(self._start_y - event.y)
-            if delta_y > self._drag_threshold:
+            delta_y = event.y - self._start_y
+            if abs(delta_y) > self._drag_threshold or self._is_dragging:
                 self._is_dragging = True
-                self.canvas.yview_scroll(int((self._start_y - event.y) / 2), "units")
-                self._start_y = event.y
+                self.canvas.yview_scroll(int(-delta_y / 2), "units")  # Adjust divisor for sensitivity
+                self._start_y = event.y  # Update start point for smoother scrolling
+
 
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
@@ -215,9 +216,6 @@ class ContentObject(tk.Frame):
 
         self.content_panel = local_state['mc_panel_ref']
         self.content_panel.bind_touch_to_child(self)
-
-        if isinstance(parent.master, ContentPanel):
-            parent.master.bind_touch_to_child(self)
 
         self.bg_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
         self.fg_color = local_state['mc_fg_color']
@@ -383,6 +381,7 @@ class ContentObject(tk.Frame):
         self.time_thread.start()
 
     def propagate_to_parent(self, widget):
+        """Propagate motion events to the canvas for scrolling."""
         widget.bind("<B1-Motion>", lambda e: self.content_panel.canvas.event_generate("<B1-Motion>", x=e.x, y=e.y))
 
     def _format_time(self):
