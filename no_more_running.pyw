@@ -90,6 +90,10 @@ class ContentPanel(tk.Frame):
 
         _bg_color = local_state['mc_bg_color']
 
+        self._start_y = None
+        self._drag_threshold = 5
+        self._is_dragging = False
+
         self.canvas = tk.Canvas(self, bg=_bg_color, highlightthickness=0)
         self.scrollable_frame = tk.Frame(self.canvas, bg=_bg_color)
 
@@ -108,22 +112,24 @@ class ContentPanel(tk.Frame):
 
     def bind_touch_to_child(self, widget):
         """Bind touch scrolling to a specific widget and its children."""
-        widget.bind("<Button-1>", self._on_touch_start)
         widget.bind("<B1-Motion>", self._on_touch_scroll)
 
         for child in widget.winfo_children():
             self.bind_touch_to_child(child)
 
     def _on_touch_start(self, event):
-        """Record the initial Y position when touch starts."""
+        """Record the initial position for drag detection."""
         self._start_y = event.y
+        self._is_dragging = False  # Reset dragging state
 
     def _on_touch_scroll(self, event):
-        """Scroll the canvas based on touch drag motion."""
+        """Handle scrolling only if dragging is detected."""
         if self._start_y is not None:
-            delta_y = self._start_y - event.y
-            self.canvas.yview_scroll(int(delta_y), "units")
-            self._start_y = event.y
+            delta_y = abs(self._start_y - event.y)
+            if delta_y > self._drag_threshold:
+                self._is_dragging = True
+                self.canvas.yview_scroll(int((self._start_y - event.y) / 2), "units")
+                self._start_y = event.y
 
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
@@ -415,55 +421,56 @@ class ContentObject(tk.Frame):
 
     def _set_selected(self, _is_selected):
         """Change the appearance of the widget to indicate selection."""
-        _other_object_active = local_state['is_object_active']
+        if not self.content_panel._is_dragging:
+            _other_object_active = local_state['is_object_active']
 
-        if not self.is_selected and _other_object_active == True:
-            _active_obj_id = str(local_state.get('active_obj_id'))
-            _active_obj = local_state[self.ref_dict][_active_obj_id]
-            _active_obj.deselect()
-            update_local_state('is_object_active', False)
-            update_local_state('active_obj_id', '')
-        
-        _other_object_active = local_state['is_object_active']
+            if not self.is_selected and _other_object_active == True:
+                _active_obj_id = str(local_state.get('active_obj_id'))
+                _active_obj = local_state[self.ref_dict][_active_obj_id]
+                _active_obj.deselect()
+                update_local_state('is_object_active', False)
+                update_local_state('active_obj_id', '')
+            
+            _other_object_active = local_state['is_object_active']
 
-        if not self.is_selected and not _other_object_active:
-                if hasattr(self, 'lbl_flag_a'):
-                    self.cont_flag_a.configure(bg = self.accent_bg_color)
-                    self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+            if not self.is_selected and not _other_object_active:
+                    if hasattr(self, 'lbl_flag_a'):
+                        self.cont_flag_a.configure(bg = self.accent_bg_color)
+                        self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
 
-                if hasattr(self, 'lbl_flag_b'):
-                    self.cont_flag_b.configure(bg = self.accent_bg_color)
-                    self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
-                
-                if self.accent_fg_color != '':
-                    self.lbl_title.configure(fg = self.accent_fg_color)
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color)
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color)
-                else:
-                    self.lbl_title.configure(fg = '#0F0F0F')
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = '#0F0F0F')
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = '#0F0F0F')
-                
-                if self.accent_bg_color != '':
-                    self.lbl_title.configure(bg = self.accent_bg_color)
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
-                    self.configure(bg = self.accent_bg_color)
-                else:
-                    self.lbl_title.configure(bg = '#F0F0F0')
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
-                    self.configure(bg = '#F0F0F0')
-                
-                if self.masking_enabled:
-                    self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
+                    if hasattr(self, 'lbl_flag_b'):
+                        self.cont_flag_b.configure(bg = self.accent_bg_color)
+                        self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+                    
+                    if self.accent_fg_color != '':
+                        self.lbl_title.configure(fg = self.accent_fg_color)
+                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color)
+                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color)
+                    else:
+                        self.lbl_title.configure(fg = '#0F0F0F')
+                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = '#0F0F0F')
+                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = '#0F0F0F')
+                    
+                    if self.accent_bg_color != '':
+                        self.lbl_title.configure(bg = self.accent_bg_color)
+                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
+                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
+                        self.configure(bg = self.accent_bg_color)
+                    else:
+                        self.lbl_title.configure(bg = '#F0F0F0')
+                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
+                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
+                        self.configure(bg = '#F0F0F0')
+                    
+                    if self.masking_enabled:
+                        self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
 
-                self.is_selected = True
-                update_local_state('is_object_active', True)
-                update_local_state('active_obj_id', self.unique_id)
+                    self.is_selected = True
+                    update_local_state('is_object_active', True)
+                    update_local_state('active_obj_id', self.unique_id)
 
-        elif self.is_selected:
-            self.deselect()
+            elif self.is_selected:
+                self.deselect()
 
     def deselect(self):
         self.configure(bg = self.bg_color)
