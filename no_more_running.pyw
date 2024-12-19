@@ -88,94 +88,48 @@ class ContentPanel(tk.Frame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
 
-        _bg_color = local_state['mc_bg_color']
+        self.configure(bg = local_state['mc_bg_color'])
 
-        self._start_y = None
-        self._drag_threshold = 2
-        self._is_dragging = False
-        self._selection_timer = None  # Timer for handling selection delay
-        self._selection_delay = 200  # Delay in milliseconds
+        self.nav_backdrop = tk.Canvas(self, width = 100, height = 50, bg = local_state['mc_bg_color'])
 
-        self.canvas = tk.Canvas(self, bg=_bg_color, highlightthickness=0)
-        self.scrollable_frame = tk.Frame(self.canvas, bg=_bg_color)
+        self.nav_backdrop.create_rectangle(0, 0, 350, 250, fill = '#000000', outline = '')
+        try:
+            _img_left_arrow_path = os.path.join(IMG_DIR, 'arrow_left.png')
+            _img_right_arrow_path = os.path.join(IMG_DIR, 'arrow_right.png')
+            _img_first_page_path = os.path.join(IMG_DIR, 'first_page.png')
+            _img_last_page_path = os.path.join(IMG_DIR, 'last_page.png')
+            _img_left_arrow = Image.open(_img_left_arrow_path).resize((56, 56))
+            _img_right_arrow = Image.open(_img_right_arrow_path).resize((56, 56))
+            _img_first_page = Image.open(_img_first_page_path).resize((38, 38))
+            _img_last_page = Image.open(_img_last_page_path).resize((38, 38))
 
-        self.scrollable_frame.bind("<Configure>",
-                                   lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        except Exception as e:
+            # Creates an image placeholder if image above cannot be loaded.
+            _placeholder = Image.new('RGBA', (38, 28), (200, 200, 200, 255))
+            _draw = ImageDraw.Draw(_placeholder)
+            _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
+            _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
+            _img_left_arrow = _placeholder
+            _img_right_arrow = _placeholder
+            _img_first_page = _placeholder
+            _img_last_page = _placeholder
 
-        self.canvas_frame = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_frame, width=e.width))
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.img_left_arrow = ImageTk.PhotoImage(_img_left_arrow)
+        self.img_right_arrow = ImageTk.PhotoImage(_img_right_arrow)
+        self.img_first_page = ImageTk.PhotoImage(_img_first_page)
+        self.img_last_page = ImageTk.PhotoImage(_img_last_page)
 
-        # Tracks touch scrolling
-        self._start_y = None
+        self.cont_img_left_arrow = Label(self, image = self.img_left_arrow, bg = local_state['mc_bg_color'])
+        self.cont_img_right_arrow = Label(self, image = self.img_right_arrow, bg = local_state['mc_bg_color'])
+        self.cont_img_first_page = Label(self, image = self.img_first_page, bg = local_state['mc_bg_color'])
+        self.cont_img_last_page = Label(self, image = self.img_last_page, bg = local_state['mc_bg_color'])
 
-        self.canvas.bind("<Button-1>", self._on_touch_start)
-        self.canvas.bind("<B1-Motion>", self._on_touch_scroll)
+        self.nav_backdrop.place(relx = 0.9, rely = 0.95)
+        self.cont_img_first_page.place(relx = 0.8, rely = 0.93)
+        self.cont_img_left_arrow.place(relx = 0.85, rely = 0.92)
+        self.cont_img_right_arrow.place(relx = 0.9, rely = 0.92)
+        self.cont_img_last_page.place(relx = 0.96, rely = 0.93)
 
-    def bind_touch_to_child(self, widget):
-        """Bind touch scrolling to a specific widget and its children."""
-        widget.bind("<B1-Motion>", self._on_touch_scroll)
-
-        for child in widget.winfo_children():
-            self.bind_touch_to_child(child)
-
-    def _handle_selection(self, event):
-        """Handle selection after the delay if no dragging occurs."""
-        if self._is_dragging:
-            print("Skipping selection because of dragging.")
-            return
-
-        widget = event.widget
-
-        # Traverse the widget hierarchy to find the ContentObject
-        while widget and not isinstance(widget, ContentObject):
-            print(f"Traversing from widget: {widget}")
-            widget = widget.master
-
-        if widget and isinstance(widget, ContentObject):
-            print(f"Selection handled for widget: {widget}")
-            widget._set_selected(event)
-        else:
-            print("No selectable widget found.")
-
-    def _on_touch_start(self, event):
-        self._start_y = event.y
-        self._is_dragging = False
-        print(f"Touch start detected at Y={self._start_y}, widget={event.widget}")
-
-        if self._selection_timer:
-            self.after_cancel(self._selection_timer)
-
-        self._selection_timer = self.after(self._selection_delay, lambda: self._handle_selection(event))
-
-    def _on_touch_scroll(self, event):
-        """Handle scrolling only if dragging is detected."""
-        if self._start_y is not None:
-            delta_y = event.y - self._start_y
-            print(f"Touch scroll detected: delta_y={delta_y}, start_y={self._start_y}, is_dragging={self._is_dragging}")
-
-            # Check if the user is dragging
-            if abs(delta_y) > self._drag_threshold or self._is_dragging:
-                self._is_dragging = True
-                self.canvas.yview_scroll(int(-delta_y / 2), "units")  # Adjust divisor for sensitivity
-                self._start_y = event.y
-
-                # Cancel the selection timer
-                if self._selection_timer:
-                    print("Cancelling selection due to drag.")
-                    self.after_cancel(self._selection_timer)
-                    self._selection_timer = None
-
-    def _bind_mouse_wheel(self, event):
-        self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
-
-    def _unbind_mouse_wheel(self, event):
-        self.canvas.unbind("<MouseWheel>")
-
-    def _on_mouse_wheel(self, event):
-        scroll_amount = -1 * (event.delta // 120) if event.delta else -1
-        self.canvas.yview_scroll(scroll_amount, "units")
-    
     def _page_active(self):
         if local_state.get('active_obj_id') not in (None, ''):
             _active_obj_id = str(local_state.get('active_obj_id'))
@@ -209,13 +163,13 @@ class ContentPanel(tk.Frame):
 
             # Create a new MainObject instance
             main_obj = ContentObject(
-                self.scrollable_frame,
+                self,
                 mode = 'main',
-                title_val=_title,
+                title_val = _title,
                 enable_timer = True,
                 subtitle_val = _subtitle_val,
-                flag_a_val=_flag_a,
-                flag_b_val=_flag_b,
+                flag_a_val = _flag_a,
+                flag_b_val = _flag_b,
             )
 
             main_obj.pack(fill='x', padx=0, pady=1)
@@ -230,11 +184,11 @@ class ContentPanel(tk.Frame):
 
             # Create a new MainObject instance
             sec_obj = ContentObject(
-                self.scrollable_frame,
+                self,
                 mode = 'sec',
-                title_val=_title,
-                flag_a_val=_flag_a,
-                flag_b_val=_flag_b,
+                title_val = _title,
+                flag_a_val = _flag_a,
+                flag_b_val = _flag_b,
             )
 
             sec_obj.pack(fill='x', padx=0, pady=1)
@@ -246,9 +200,7 @@ class ContentObject(tk.Frame):
 
         self.configure(height = 100)
         self.pack_propagate(False)
-
-        self.content_panel = local_state['mc_panel_ref']
-        self.content_panel.bind_touch_to_child(self)
+        self.bind("<Button-1>", self._set_selected)
 
         self.bg_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
         self.fg_color = local_state['mc_fg_color']
@@ -291,27 +243,31 @@ class ContentObject(tk.Frame):
         # Try to load and set flag icons, create placeholder on fail. 
         try: 
             if mode == 'main' and local_state['config']['main_flags_enabled']:
-                _icon_a_path = os.path.join(IMG_DIR, 'main_flag_a.png')
-                _icon_b_path = os.path.join(IMG_DIR, 'main_flag_b.png')
-                _icon_a = Image.open(_icon_a_path).resize((38, 38))
-                _icon_b = Image.open(_icon_b_path).resize((38, 38))
+                _img_a_path = os.path.join(IMG_DIR, 'main_flag_a.png')
+                _img_b_path = os.path.join(IMG_DIR, 'main_flag_b.png')
+                _img_a = Image.open(_img_a_path).resize((38, 38))
+                _img_b = Image.open(_img_b_path).resize((38, 38))
 
             elif local_state['config']['sec_flags_enabled']:
-                _icon_a_path = os.path.join(IMG_DIR, 'sec_flag_a.png')
-                _icon_b_path = os.path.join(IMG_DIR, 'sec_flag_b.png')
-                _icon_a = Image.open(_icon_a_path).resize((38, 38))
-                _icon_b = Image.open(_icon_b_path).resize((38, 38))
+                _img_a_path = os.path.join(IMG_DIR, 'sec_flag_a.png')
+                _img_b_path = os.path.join(IMG_DIR, 'sec_flag_b.png')
+                _img_a = Image.open(_img_a_path).resize((38, 38))
+                _img_b = Image.open(_img_b_path).resize((38, 38))
             
+        
+
         except Exception as e:
+            # Creates an image with a red X as a placeholder
             _placeholder = Image.new("RGBA", (38, 38), (200, 200, 200, 255))
             _draw = ImageDraw.Draw(_placeholder)
             _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
             _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
-            _icon_a = _placeholder
-            _icon_b = _placeholder
+
+            _img_a = _placeholder
+            _img_b = _placeholder
         
-        self.flag_a_image = ImageTk.PhotoImage(_icon_a)
-        self.flag_b_image = ImageTk.PhotoImage(_icon_b)
+        self.img_flag_a = ImageTk.PhotoImage(_img_a)
+        self.img_flag_b = ImageTk.PhotoImage(_img_b)
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
@@ -321,6 +277,7 @@ class ContentObject(tk.Frame):
                                     anchor = 'w')
 
         self.lbl_title.place(relx = 0.06, rely = 0.35, anchor = 'center')
+        self.lbl_title.bind("<Button-1>", self._set_selected)
         
         if self.subtitle_enabled:
             self.lbl_subtitle = tk.Label(self,
@@ -331,6 +288,7 @@ class ContentObject(tk.Frame):
                                             anchor = 'w')
 
             self.lbl_subtitle.place(relx = 0.06, rely = 0.65, anchor = 'center')
+            self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
         if enable_timer:
             self.time_elapsed = 0
@@ -343,7 +301,9 @@ class ContentObject(tk.Frame):
                                         fg = self.fg_color)
 
             self.lbl_timer.place(relx = 0.86, rely = 0.5, anchor = 'center')
+            self.lbl_timer.bind("<Button-1>", self._set_selected)
         
+
         if mode == 'main' and local_state['config']['main_flags_enabled']:
             _flag_a_name = local_state['config']['main_obj_flag_a_name']
             _flag_b_name = local_state['config']['main_obj_flag_b_name']
@@ -366,7 +326,7 @@ class ContentObject(tk.Frame):
                                         fg = self.fg_color)
             
             self.cont_flag_a = tk.Label(self,
-                                        image = self.flag_a_image,
+                                        image = self.img_flag_a,
                                         bg = self.bg_color)
             
             self.lbl_flag_b = tk.Label(self,
@@ -376,43 +336,23 @@ class ContentObject(tk.Frame):
                                         fg = self.fg_color)
             
             self.cont_flag_b = tk.Label(self,
-                                            image = self.flag_b_image,
+                                            image = self.img_flag_b,
                                             bg = self.bg_color)
             
             if flag_a_val:
                 self.lbl_flag_a.place(relx = 0.15, rely = 0.25, anchor = 'center')
                 self.cont_flag_a.place(relx = 0.15, rely = 0.65, anchor = 'center')
+                self.lbl_flag_a.bind('<Button-1>', self._set_selected)
+                self.cont_flag_a.bind('<Button-1>', self._set_selected)
 
             if flag_b_val:
                 self.lbl_flag_b.place(relx = 0.22, rely = 0.25, anchor = 'center')
-                self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center') 
-
-        self.propagate_to_parent(self.lbl_title)
-
-        if hasattr(self, "lbl_subtitle"):
-            self.propagate_to_parent(self.lbl_subtitle)
-
-        if hasattr(self, "lbl_timer"):
-            self.propagate_to_parent(self.lbl_timer)
-        
-        if hasattr(self, 'lbl_flag_a'):
-            self.propagate_to_parent(self.lbl_flag_a)
-            self.propagate_to_parent(self.cont_flag_a)
-        
-        if hasattr(self, 'lbl_flag_b'):
-            self.propagate_to_parent(self.lbl_flag_b)
-            self.propagate_to_parent(self.cont_flag_b)
-        
-        self.bind("<Button-1>", self._set_selected)
+                self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center')
+                self.lbl_flag_b.bind('<Button-1>', self._set_selected)
+                self.cont_flag_b.bind('<Button-1>', self._set_selected)
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.time_thread.start()
-
-    def propagate_to_parent(self, widget):
-        """Bind events to propagate motion and taps to the ContentObject."""
-        widget.bind("<B1-Motion>", lambda e: self.content_panel.canvas.event_generate("<B1-Motion>", x=e.x, y=e.y))
-        widget.bind("<Button-1>", lambda e: self._set_selected(e))
-        print(f"Propagated events for: {widget}")
 
     def _format_time(self):
         hours, remainder = divmod(self.time_elapsed, 3600)
@@ -448,65 +388,57 @@ class ContentObject(tk.Frame):
         brightened_color = f"#{r:02X}{g:02X}{b:02X}"
         return brightened_color
 
-    def _set_selected(self, event=None):
+    def _set_selected(self, _is_selected):
         """Change the appearance of the widget to indicate selection."""
-        print(f"ContentObject selected: {self.lbl_title.cget('text')}")
-
-        # Ignore if the user is dragging
-        if self.content_panel._is_dragging:
-            print("Ignoring selection due to dragging.")
-            return
-
         _other_object_active = local_state['is_object_active']
 
-        # Deselect the currently active object if it's not this one
-        if not self.is_selected and _other_object_active:
+        if not self.is_selected and _other_object_active == True:
             _active_obj_id = str(local_state.get('active_obj_id'))
-            if _active_obj_id in local_state[self.ref_dict]:
-                _active_obj = local_state[self.ref_dict][_active_obj_id]
-                print(f"Deselecting currently active object: {_active_obj.lbl_title.cget('text')}")
-                _active_obj.deselect()
-                update_local_state('is_object_active', False)
-                update_local_state('active_obj_id', '')
+            _active_obj = local_state[self.ref_dict][_active_obj_id]
+            _active_obj.deselect()
+            update_local_state('is_object_active', False)
+            update_local_state('active_obj_id', '')
+        
+        _other_object_active = local_state['is_object_active']
 
-        # Update the object's state if it's not already selected
-        if not self.is_selected:
-            print(f"Selecting object: {self.lbl_title.cget('text')}")
+        if not self.is_selected and not _other_object_active:
+                if hasattr(self, 'lbl_flag_a'):
+                    self.cont_flag_a.configure(bg = self.accent_bg_color)
+                    self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
 
-            # Update flags' appearance
-            if hasattr(self, 'lbl_flag_a'):
-                self.cont_flag_a.configure(bg=self.accent_bg_color)
-                self.lbl_flag_a.configure(bg=self.accent_bg_color, fg=self.accent_fg_color)
+                if hasattr(self, 'lbl_flag_b'):
+                    self.cont_flag_b.configure(bg = self.accent_bg_color)
+                    self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+                
+                if self.accent_fg_color != '':
+                    self.lbl_title.configure(fg = self.accent_fg_color)
+                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color)
+                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color)
+                else:
+                    self.lbl_title.configure(fg = '#0F0F0F')
+                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = '#0F0F0F')
+                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = '#0F0F0F')
+                
+                if self.accent_bg_color != '':
+                    self.lbl_title.configure(bg = self.accent_bg_color)
+                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
+                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
+                    self.configure(bg = self.accent_bg_color)
+                else:
+                    self.lbl_title.configure(bg = '#F0F0F0')
+                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
+                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
+                    self.configure(bg = '#F0F0F0')
+                
+                if self.masking_enabled:
+                    self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
 
-            if hasattr(self, 'lbl_flag_b'):
-                self.cont_flag_b.configure(bg=self.accent_bg_color)
-                self.lbl_flag_b.configure(bg=self.accent_bg_color, fg=self.accent_fg_color)
+                self.is_selected = True
+                update_local_state('is_object_active', True)
+                update_local_state('active_obj_id', self.unique_id)
 
-            # Update title, subtitle, and timer colors
-            fg_color = self.accent_fg_color if self.accent_fg_color else '#0F0F0F'
-            bg_color = self.accent_bg_color if self.accent_bg_color else '#F0F0F0'
-
-            self.lbl_title.configure(fg=fg_color, bg=bg_color)
-            if hasattr(self, 'lbl_subtitle'):
-                self.lbl_subtitle.configure(fg=fg_color, bg=bg_color)
-            if hasattr(self, 'lbl_timer'):
-                self.lbl_timer.configure(fg=fg_color, bg=bg_color)
-
-            # Update the background color of the ContentObject
-            self.configure(bg=bg_color)
-
-            # Unmask the subtitle if masking is enabled
-            if self.masking_enabled and hasattr(self, 'lbl_subtitle'):
-                self.lbl_subtitle.configure(text=self.unmasked_subtitle_val)
-
-            # Update the selection state
-            self.is_selected = True
-            update_local_state('is_object_active', True)
-            update_local_state('active_obj_id', self.unique_id)
-        else:
-            # If already selected, deselect
+        elif self.is_selected:
             self.deselect()
-
 
     def deselect(self):
         self.configure(bg = self.bg_color)
@@ -668,7 +600,7 @@ class SideBarButtons(tk.Frame):
 class SideBar(tk.Frame):
     def __init__(self, parent, main_content_panel, min_width=50, max_width=200):
         super().__init__(parent, width=min_width, bg=local_state['side_bg_color'], relief='groove')
-        self.pack_propagate(False)
+        self.pack_propagate(True)
 
         self.min_width = min_width
         self.max_width = max_width
@@ -819,34 +751,24 @@ class SideBar(tk.Frame):
         _main_panel = local_state['mc_panel_ref']
         _active_panel = local_state['active_panel_ref']
 
-        # Hide sec panel
         _active_panel.grid_remove()
 
         update_local_state('active_panel_ref', _main_panel)
 
-        # Show main panel
         _main_panel.grid()
         _main_panel.lift()
-
-        # Bind MouseWheel to the main panel
-        self.master.bind("<MouseWheel>", _main_panel._on_mouse_wheel)
 
     def _show_sec_panel(self):
         """Switch to the sec content panel."""
         _active_panel = local_state['active_panel_ref']
         _sec_panel = local_state['sec_panel_ref']
 
-        # Hide main panel
         _active_panel.grid_remove()
 
         update_local_state('active_panel_ref', _sec_panel)
 
-        # Show sec panel
         _sec_panel.grid()
         _sec_panel.lift()
-
-        # Bind MouseWheel to the sec panel
-        self.master.bind("<MouseWheel>", _sec_panel._on_mouse_wheel)
     
     def _show_set_panel(self):
         _set_panel = local_state['set_panel_ref']
@@ -858,8 +780,6 @@ class SideBar(tk.Frame):
 
         _set_panel.grid()
         _set_panel.lift()
-
-        self.master.bind("<MouseWheel>", _set_panel._on_mouse_wheel)
 
     def _create_object(self):
         pass
@@ -876,9 +796,12 @@ class SideBar(tk.Frame):
     def _exit_program(self):
         exit(0)
 
-class InfoPanel(tk.Frame):
-    def __init__(self, parent, title, type, subtitle = None, flag_a = None, flag_b = None):
-        super().__init__(parent, bg = '#2b2b2b', bd = 0, relief = 'flat')
+class StatusPanel(tk.Frame):
+    def __init__(self, parent, height, width, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+
+        self.pack_propagate(False)
+        self.configure(bg = local_state['side_bg_color'], height = height, width = width)
 
 def get_timestamp(include_month = False):
     if include_month:
@@ -1401,20 +1324,22 @@ def tk_thread():
     settings_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
+    status_panel = StatusPanel(root, height = int((_final_height / 10)), width = int(root.winfo_width() - sidebar.winfo_width()))
+    print(f'Height Should Be: {_final_height / 10}\nWidth Should Be: {root.winfo_width() - sidebar.winfo_width()}')
 
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
-    sidebar.grid(row=0, column=0, sticky="ns")
     main_content_panel.grid(row = 0, column = 1, stick = 'nsew')
+    sidebar.grid(row = 0, rowspan = 2, column = 0, sticky="ns")
+    status_panel.grid(row = 1, column = 1, sticky = 'ew')
+
     sec_content_panel.grid(row = 0, column = 1, stick = 'nsew')
     settings_content_panel.grid(row = 0, column = 1, stick = 'nsew')
     sec_content_panel.grid_remove()
     settings_content_panel.grid_remove()
 
     update_local_state('active_panel_ref', main_content_panel)
-
-    root.bind("<MouseWheel>", main_content_panel._on_mouse_wheel)
 
     update_local_state('mc_panel_ref', main_content_panel)
     update_local_state('sec_panel_ref', sec_content_panel)
@@ -1459,6 +1384,9 @@ def tk_thread():
         gradient_step = 0
         current_color = 0
         _animate_background()
+
+    root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
+    print(f'Height Is: {status_panel.winfo_height()}\nWidth Is: {status_panel.winfo_width()}')
 
     root.mainloop()
 
