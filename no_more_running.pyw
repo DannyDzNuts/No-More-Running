@@ -265,8 +265,6 @@ class ContentObject(tk.Frame):
                 _icon_a = Image.open(_icon_a_path).resize((38, 38))
                 _icon_b = Image.open(_icon_b_path).resize((38, 38))
             
-        
-
         except Exception as e:
             _placeholder = Image.new("RGBA", (38, 38), (200, 200, 200, 255))
             _draw = ImageDraw.Draw(_placeholder)
@@ -286,10 +284,6 @@ class ContentObject(tk.Frame):
                                     anchor = 'w')
 
         self.lbl_title.place(relx = 0.06, rely = 0.35, anchor = 'center')
-
-        self.lbl_title.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-        self.lbl_title.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))
-
         
         if self.subtitle_enabled:
             self.lbl_subtitle = tk.Label(self,
@@ -300,11 +294,6 @@ class ContentObject(tk.Frame):
                                             anchor = 'w')
 
             self.lbl_subtitle.place(relx = 0.06, rely = 0.65, anchor = 'center')
-            self.lbl_subtitle.bind("<Button-1>", self._set_selected)
-
-        if hasattr(self, 'lbl_subtitle'):
-            self.lbl_subtitle.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-            self.lbl_subtitle.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))
 
         if enable_timer:
             self.time_elapsed = 0
@@ -317,11 +306,6 @@ class ContentObject(tk.Frame):
                                         fg = self.fg_color)
 
             self.lbl_timer.place(relx = 0.86, rely = 0.5, anchor = 'center')
-            self.lbl_timer.bind("<Button-1>", self._set_selected)
-        
-        if hasattr(self, 'lbl_timer'):
-            self.lbl_timer.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x = e.x, y = e.y))
-            self.lbl_timer.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x = e.x, y = e.y))
         
         if mode == 'main' and local_state['config']['main_flags_enabled']:
             _flag_a_name = local_state['config']['main_obj_flag_a_name']
@@ -361,25 +345,39 @@ class ContentObject(tk.Frame):
             if flag_a_val:
                 self.lbl_flag_a.place(relx = 0.15, rely = 0.25, anchor = 'center')
                 self.cont_flag_a.place(relx = 0.15, rely = 0.65, anchor = 'center')
-                self.lbl_flag_a.bind('<Button-1>', self._set_selected)
-                self.cont_flag_a.bind('<Button-1>', self._set_selected)
-                self.lbl_flag_a.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-                self.lbl_flag_a.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))
-                self.cont_flag_a.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-                self.cont_flag_a.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))
 
             if flag_b_val:
                 self.lbl_flag_b.place(relx = 0.22, rely = 0.25, anchor = 'center')
-                self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center')
-                self.lbl_flag_b.bind('<Button-1>', self._set_selected)
-                self.cont_flag_b.bind('<Button-1>', self._set_selected)
-                self.lbl_flag_b.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-                self.lbl_flag_b.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))
-                self.cont_flag_b.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x=e.x, y=e.y))
-                self.cont_flag_b.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x=e.x, y=e.y))               
+                self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center') 
+
+        self.lbl_title.bind("<Button-1>", self._set_selected)
+        self.propagate_to_parent(self.lbl_title)
+
+        if hasattr(self, "lbl_subtitle"):
+            self.propagate_to_parent(self.lbl_subtitle)
+            self.lbl_subtitle.bind("<Button-1>", self._set_selected)
+
+        if hasattr(self, "lbl_timer"):
+            self.propagate_to_parent(self.lbl_timer)
+            self.lbl_timer.bind("<Button-1>", self._set_selected)
+        
+        if hasattr(self, 'lbl_flag_a'):
+            self.propagate_to_parent(self.lbl_flag_a)
+            self.propagate_to_parent(self.cont_flag_a)
+            self.lbl_flag_a.bind("<Button-1>", self._set_selected)
+            self.cont_flag_a.bind("<Button-1>", self._set_selected)
+        
+        if hasattr(self, 'lbl_flag_b'):
+            self.propagate_to_parent(self.lbl_flag_b)
+            self.propagate_to_parent(self.cont_flag_b)
+            self.lbl_flag_b.bind("<Button-1>", self._set_selected)
+            self.cont_flag_b.bind("<Button-1>", self._set_selected)
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.time_thread.start()
+
+    def propagate_to_parent(self, widget):
+        widget.bind("<B1-Motion>", lambda e: self.content_panel.canvas.event_generate("<B1-Motion>", x=e.x, y=e.y))
 
     def _format_time(self):
         hours, remainder = divmod(self.time_elapsed, 3600)
