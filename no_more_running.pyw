@@ -93,6 +93,8 @@ class ContentPanel(tk.Frame):
         self._start_y = None
         self._drag_threshold = 2
         self._is_dragging = False
+        self._selection_timer = None  # Timer for handling selection delay
+        self._selection_delay = 200  # Delay in milliseconds
 
         self.canvas = tk.Canvas(self, bg=_bg_color, highlightthickness=0)
         self.scrollable_frame = tk.Frame(self.canvas, bg=_bg_color)
@@ -117,20 +119,45 @@ class ContentPanel(tk.Frame):
         for child in widget.winfo_children():
             self.bind_touch_to_child(child)
 
+    def _handle_selection(self, event):
+        """Handle selection after the delay if no dragging occurs."""
+        if not self._is_dragging:
+            widget = event.widget
+
+            # Traverse the widget hierarchy to find the ContentObject
+            while widget and not isinstance(widget, ContentObject):
+                print(f"Traversing from widget: {widget}")
+                widget = widget.master
+
+            if widget and isinstance(widget, ContentObject):
+                print(f"Selection handled for widget: {widget}")
+                widget._set_selected(event)
+            else:
+                print("No selectable widget found.")
+
     def _on_touch_start(self, event):
-        """Record the initial position for drag detection."""
         self._start_y = event.y
-        self._is_dragging = False  # Reset dragging state
+        self._is_dragging = False
+        print(f"Touch start at {self._start_y}, target widget: {event.widget}")
+
+        if self._selection_timer:
+            self.after_cancel(self._selection_timer)
+
+        self._selection_timer = self.after(self._selection_delay, lambda: self._handle_selection(event))
 
     def _on_touch_scroll(self, event):
-        """Handle scrolling only if dragging is detected."""
         if self._start_y is not None:
             delta_y = event.y - self._start_y
+            print(f"Touch scroll: delta_y={delta_y}, start_y={self._start_y}")
+
             if abs(delta_y) > self._drag_threshold or self._is_dragging:
                 self._is_dragging = True
-                self.canvas.yview_scroll(int(-delta_y / 2), "units")  # Adjust divisor for sensitivity
-                self._start_y = event.y  # Update start point for smoother scrolling
+                self.canvas.yview_scroll(int(-delta_y / 2), "units")
+                self._start_y = event.y
 
+                if self._selection_timer:
+                    self.after_cancel(self._selection_timer)
+                    self._selection_timer = None
 
     def _bind_mouse_wheel(self, event):
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
@@ -212,7 +239,6 @@ class ContentObject(tk.Frame):
 
         self.configure(height = 100)
         self.pack_propagate(False)
-        self.bind("<Button-1>", self._set_selected)
 
         self.content_panel = local_state['mc_panel_ref']
         self.content_panel.bind_touch_to_child(self)
@@ -354,35 +380,32 @@ class ContentObject(tk.Frame):
                 self.lbl_flag_b.place(relx = 0.22, rely = 0.25, anchor = 'center')
                 self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center') 
 
-        self.lbl_title.bind("<Button-1>", self._set_selected)
         self.propagate_to_parent(self.lbl_title)
 
         if hasattr(self, "lbl_subtitle"):
             self.propagate_to_parent(self.lbl_subtitle)
-            self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
         if hasattr(self, "lbl_timer"):
             self.propagate_to_parent(self.lbl_timer)
-            self.lbl_timer.bind("<Button-1>", self._set_selected)
         
         if hasattr(self, 'lbl_flag_a'):
             self.propagate_to_parent(self.lbl_flag_a)
             self.propagate_to_parent(self.cont_flag_a)
-            self.lbl_flag_a.bind("<Button-1>", self._set_selected)
-            self.cont_flag_a.bind("<Button-1>", self._set_selected)
         
         if hasattr(self, 'lbl_flag_b'):
             self.propagate_to_parent(self.lbl_flag_b)
             self.propagate_to_parent(self.cont_flag_b)
-            self.lbl_flag_b.bind("<Button-1>", self._set_selected)
-            self.cont_flag_b.bind("<Button-1>", self._set_selected)
+        
+        self.bind("<Button-1>", self._set_selected)
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.time_thread.start()
 
     def propagate_to_parent(self, widget):
-        """Propagate motion events to the canvas for scrolling."""
+        """Bind events to propagate motion and taps to the ContentObject."""
         widget.bind("<B1-Motion>", lambda e: self.content_panel.canvas.event_generate("<B1-Motion>", x=e.x, y=e.y))
+        widget.bind("<Button-1>", lambda e: self._set_selected(e))  # Call _set_selected directly
+        print(f"Propagated events for: {widget}")
 
     def _format_time(self):
         hours, remainder = divmod(self.time_elapsed, 3600)
@@ -418,58 +441,65 @@ class ContentObject(tk.Frame):
         brightened_color = f"#{r:02X}{g:02X}{b:02X}"
         return brightened_color
 
-    def _set_selected(self, _is_selected):
+    def _set_selected(self, event=None):
         """Change the appearance of the widget to indicate selection."""
-        if not self.content_panel._is_dragging:
-            _other_object_active = local_state['is_object_active']
+        print(f"ContentObject selected: {self.lbl_title.cget('text')}")
 
-            if not self.is_selected and _other_object_active == True:
-                _active_obj_id = str(local_state.get('active_obj_id'))
+        # Ignore if the user is dragging
+        if self.content_panel._is_dragging:
+            print("Ignoring selection due to dragging.")
+            return
+
+        _other_object_active = local_state['is_object_active']
+
+        # Deselect the currently active object if it's not this one
+        if not self.is_selected and _other_object_active:
+            _active_obj_id = str(local_state.get('active_obj_id'))
+            if _active_obj_id in local_state[self.ref_dict]:
                 _active_obj = local_state[self.ref_dict][_active_obj_id]
+                print(f"Deselecting currently active object: {_active_obj.lbl_title.cget('text')}")
                 _active_obj.deselect()
                 update_local_state('is_object_active', False)
                 update_local_state('active_obj_id', '')
-            
-            _other_object_active = local_state['is_object_active']
 
-            if not self.is_selected and not _other_object_active:
-                    if hasattr(self, 'lbl_flag_a'):
-                        self.cont_flag_a.configure(bg = self.accent_bg_color)
-                        self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+        # Update the object's state if it's not already selected
+        if not self.is_selected:
+            print(f"Selecting object: {self.lbl_title.cget('text')}")
 
-                    if hasattr(self, 'lbl_flag_b'):
-                        self.cont_flag_b.configure(bg = self.accent_bg_color)
-                        self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
-                    
-                    if self.accent_fg_color != '':
-                        self.lbl_title.configure(fg = self.accent_fg_color)
-                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color)
-                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color)
-                    else:
-                        self.lbl_title.configure(fg = '#0F0F0F')
-                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = '#0F0F0F')
-                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = '#0F0F0F')
-                    
-                    if self.accent_bg_color != '':
-                        self.lbl_title.configure(bg = self.accent_bg_color)
-                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
-                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
-                        self.configure(bg = self.accent_bg_color)
-                    else:
-                        self.lbl_title.configure(bg = '#F0F0F0')
-                        if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
-                        if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
-                        self.configure(bg = '#F0F0F0')
-                    
-                    if self.masking_enabled:
-                        self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
+            # Update flags' appearance
+            if hasattr(self, 'lbl_flag_a'):
+                self.cont_flag_a.configure(bg=self.accent_bg_color)
+                self.lbl_flag_a.configure(bg=self.accent_bg_color, fg=self.accent_fg_color)
 
-                    self.is_selected = True
-                    update_local_state('is_object_active', True)
-                    update_local_state('active_obj_id', self.unique_id)
+            if hasattr(self, 'lbl_flag_b'):
+                self.cont_flag_b.configure(bg=self.accent_bg_color)
+                self.lbl_flag_b.configure(bg=self.accent_bg_color, fg=self.accent_fg_color)
 
-            elif self.is_selected:
-                self.deselect()
+            # Update title, subtitle, and timer colors
+            fg_color = self.accent_fg_color if self.accent_fg_color else '#0F0F0F'
+            bg_color = self.accent_bg_color if self.accent_bg_color else '#F0F0F0'
+
+            self.lbl_title.configure(fg=fg_color, bg=bg_color)
+            if hasattr(self, 'lbl_subtitle'):
+                self.lbl_subtitle.configure(fg=fg_color, bg=bg_color)
+            if hasattr(self, 'lbl_timer'):
+                self.lbl_timer.configure(fg=fg_color, bg=bg_color)
+
+            # Update the background color of the ContentObject
+            self.configure(bg=bg_color)
+
+            # Unmask the subtitle if masking is enabled
+            if self.masking_enabled and hasattr(self, 'lbl_subtitle'):
+                self.lbl_subtitle.configure(text=self.unmasked_subtitle_val)
+
+            # Update the selection state
+            self.is_selected = True
+            update_local_state('is_object_active', True)
+            update_local_state('active_obj_id', self.unique_id)
+        else:
+            # If already selected, deselect
+            self.deselect()
+
 
     def deselect(self):
         self.configure(bg = self.bg_color)
