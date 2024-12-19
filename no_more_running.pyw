@@ -321,7 +321,7 @@ class ContentObject(tk.Frame):
         
         if hasattr(self, 'lbl_timer'):
             self.lbl_timer.bind("<Button-1>", lambda e: self.event_generate("<Button-1>", x = e.x, y = e.y))
-            self.lbl_timer.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x = e.x, y - e.y))
+            self.lbl_timer.bind("<B1-Motion>", lambda e: self.event_generate("<B1-Motion>", x = e.x, y = e.y))
         
         if mode == 'main' and local_state['config']['main_flags_enabled']:
             _flag_a_name = local_state['config']['main_obj_flag_a_name']
