@@ -90,6 +90,20 @@ class ContentPanel(tk.Frame):
 
         self.configure(bg = local_state['mc_bg_color'])
 
+        self.num_columns = 4
+        self.num_rows = 3
+        self.grid_tracker = [[None for _ in range(self.num_columns)] for _ in range(self.num_rows)]
+
+        self.grid_columnconfigure(0, weight = 0)
+        self.grid_columnconfigure(1, weight = 1)
+        self.grid_columnconfigure(2, weight = 2)
+        self.grid_columnconfigure(3, weight = 3)
+
+        self.grid_rowconfigure(0, weight = 1)
+        self.grid_rowconfigure(1, weight = 1)
+        self.grid_rowconfigure(2, weight = 1)
+        self.grid_rowconfigure(3, weight = 1)
+
         self.nav_backdrop = tk.Canvas(self, width = 100, height = 50, bg = local_state['mc_bg_color'])
 
         self.nav_backdrop.create_rectangle(0, 0, 350, 250, fill = '#000000', outline = '')
@@ -166,14 +180,26 @@ class ContentPanel(tk.Frame):
                 self,
                 mode = 'main',
                 title_val = _title,
+                width = int(self.winfo_width() / 5),
+                height = int(self.winfo_height() / 4),
                 enable_timer = True,
                 subtitle_val = _subtitle_val,
                 flag_a_val = _flag_a,
                 flag_b_val = _flag_b,
             )
 
-            main_obj.pack(fill='x', padx=0, pady=1)
+            row, column = self._find_next_cell(self.grid_tracker)
+            if row is not None and column is not None:
+                main_obj.grid(row = row, column = column)
+                self.grid_tracker[row][column] = main_obj
 
+    def _find_next_cell(self, grid_tracker):
+        for row in range(len(grid_tracker)):
+            for column in range(len(grid_tracker[row])):
+                if grid_tracker[row][column] is None:
+                    return row, column
+        return None
+    
     def _debug_gen_secobjs(self, number_to_generate=5):
         """Generate and add sample objects to the panel for debugging purposes."""
 
@@ -193,8 +219,8 @@ class ContentPanel(tk.Frame):
 
             sec_obj.pack(fill='x', padx=0, pady=1)
 
-class ContentObject(tk.Frame):
-    def __init__(self, parent, mode, title_val, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
+class ContentObject(tk.Canvas):
+    def __init__(self, parent, mode, title_val, width, height, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
         super().__init__(parent, bd = 1, relief = 'raised')
         if not mode in ('main', 'sec'): return
 
@@ -202,11 +228,21 @@ class ContentObject(tk.Frame):
         self.pack_propagate(False)
         self.bind("<Button-1>", self._set_selected)
 
-        self.bg_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
+        self.width = width
+        self.height = height
+        self.configure(width=self.width, height=self.height)
+
+        self.fill_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
+        self.outline_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 5)
+        self.active_outline_color = local_state['accent_bg_color']
         self.fg_color = local_state['mc_fg_color']
+        _parent_bg_color = local_state['mc_bg_color']
         self.is_selected = False
         self.unique_id = uuid4()
+        self.corner_radius = 23
         
+        self._draw_object()
+
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
         else:
@@ -238,7 +274,7 @@ class ContentObject(tk.Frame):
         else:
             self.accent_fg_color = '#0F0F0F'
         
-        self.configure(bg = self.bg_color)
+        self.configure(bg = self.fill_color)
 
         # Try to load and set flag icons, create placeholder on fail. 
         try: 
@@ -271,7 +307,7 @@ class ContentObject(tk.Frame):
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
-                                    bg = self.bg_color,
+                                    bg = self.fill_color,
                                     fg = self.fg_color,
                                     font = ('Arial', 20, 'bold'),
                                     anchor = 'w')
@@ -282,7 +318,7 @@ class ContentObject(tk.Frame):
         if self.subtitle_enabled:
             self.lbl_subtitle = tk.Label(self,
                                             text = _init_subtitle_val,
-                                            bg = self.bg_color,
+                                            bg = self.fill_color,
                                             fg = self.fg_color,
                                             font = ('Arial', 14),
                                             anchor = 'w')
@@ -297,7 +333,7 @@ class ContentObject(tk.Frame):
             self.lbl_timer = tk.Label(self,
                                         text = self._format_time(),
                                         font = ('Ariel', 20),
-                                        bg = self.bg_color,
+                                        bg = self.fill_color,
                                         fg = self.fg_color)
 
             self.lbl_timer.place(relx = 0.86, rely = 0.5, anchor = 'center')
@@ -322,22 +358,22 @@ class ContentObject(tk.Frame):
             self.lbl_flag_a = tk.Label(self,
                                         text = _flag_a_name,
                                         font = ('Arial', 16),
-                                        bg = self.bg_color,
+                                        bg = self.fill_color,
                                         fg = self.fg_color)
             
             self.cont_flag_a = tk.Label(self,
                                         image = self.img_flag_a,
-                                        bg = self.bg_color)
+                                        bg = self.fill_color)
             
             self.lbl_flag_b = tk.Label(self,
                                         text = _flag_b_name,
                                         font = ('Arial', 16),
-                                        bg = self.bg_color,
+                                        bg = self.fill_color,
                                         fg = self.fg_color)
             
             self.cont_flag_b = tk.Label(self,
                                             image = self.img_flag_b,
-                                            bg = self.bg_color)
+                                            bg = self.fill_color)
             
             if flag_a_val:
                 self.lbl_flag_a.place(relx = 0.15, rely = 0.25, anchor = 'center')
@@ -353,6 +389,26 @@ class ContentObject(tk.Frame):
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.time_thread.start()
+    
+    def _draw_object(self, outline_color = None):
+        """Draw a rounded rectangle background."""
+        self.delete("all")  # Clear any previous drawings
+        radius = self.corner_radius
+
+        if not outline_color is None:
+            pass
+        else:
+            outline_color = self.outline_color
+
+        # Draw corners using arcs
+        self.create_arc((0, 0, 2 * radius, 2 * radius), start=90, extent=90, fill=self.fill_color, outline=outline_color)
+        self.create_arc((self.width - 2 * radius, 0, self.width, 2 * radius), start=0, extent=90, fill=self.fill_color, outline=outline_color)
+        self.create_arc((0, self.height - 2 * radius, 2 * radius, self.height), start=180, extent=90, fill=self.fill_color, outline=outline_color)
+        self.create_arc((self.width - 2 * radius, self.height - 2 * radius, self.width, self.height), start=270, extent=90, fill=self.fill_color, outline=outline_color)
+
+        # Draw rectangles to fill the remaining parts
+        self.create_rectangle((radius, 0, self.width - radius, self.height), fill=self.fill_color, outline=outline_color)
+        self.create_rectangle((0, radius, self.width, self.height - radius), fill=self.fill_color, outline=outline_color)
 
     def _format_time(self):
         hours, remainder = divmod(self.time_elapsed, 3600)
@@ -390,6 +446,8 @@ class ContentObject(tk.Frame):
 
     def _set_selected(self, _is_selected):
         """Change the appearance of the widget to indicate selection."""
+        self._draw_object(outline_color = local_state['accent_bg_color'])
+
         _other_object_active = local_state['is_object_active']
 
         if not self.is_selected and _other_object_active == True:
@@ -423,12 +481,10 @@ class ContentObject(tk.Frame):
                     self.lbl_title.configure(bg = self.accent_bg_color)
                     if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
                     if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
-                    self.configure(bg = self.accent_bg_color)
                 else:
                     self.lbl_title.configure(bg = '#F0F0F0')
                     if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
                     if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
-                    self.configure(bg = '#F0F0F0')
                 
                 if self.masking_enabled:
                     self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
@@ -441,30 +497,30 @@ class ContentObject(tk.Frame):
             self.deselect()
 
     def deselect(self):
-        self.configure(bg = self.bg_color)
-        self.lbl_title.configure(bg = self.bg_color)
+        self.configure(bg = self.fill_color)
+        self.lbl_title.configure(bg = self.fill_color)
 
         if hasattr(self, 'cont_flag_a'):
-            self.cont_flag_a.configure(bg = self.bg_color)
-            self.lbl_flag_a.configure(bg = self.bg_color)
+            self.cont_flag_a.configure(bg = self.fill_color)
+            self.lbl_flag_a.configure(bg = self.fill_color)
             self.lbl_flag_a.configure(fg = self.fg_color)
 
         if hasattr(self, 'cont_flag_b'):
-            self.cont_flag_b.configure(bg = self.bg_color)
-            self.lbl_flag_b.configure(bg = self.bg_color)
+            self.cont_flag_b.configure(bg = self.fill_color)
+            self.lbl_flag_b.configure(bg = self.fill_color)
             self.lbl_flag_b.configure(fg = self.fg_color)
         
         self.lbl_title.configure(fg = self.fg_color)
         
         if hasattr(self, 'lbl_subtitle'): 
             self.lbl_subtitle.configure(fg = self.fg_color)
-            self.lbl_subtitle.configure(bg = self.bg_color)
+            self.lbl_subtitle.configure(bg = self.fill_color)
         
         if hasattr(self, 'lbl_timer'): 
             self.lbl_timer.configure(fg = self.fg_color)
-            self.lbl_timer.configure(bg = self.bg_color)
+            self.lbl_timer.configure(bg = self.fill_color)
 
-        self.configure(bg = self.bg_color)
+        self.configure(bg = self.fill_color)
 
         if self.masking_enabled:
             self.lbl_subtitle.configure(text = self.masked_subtitle_val)
@@ -479,7 +535,7 @@ class ContentObject(tk.Frame):
         root = self.winfo_toplevel()
 
         # Create a semi-transparent full-screen overlay
-        overlay = tk.Frame(root, bg = self.bg_color)
+        overlay = tk.Frame(root, bg = self.fill_color)
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         overlay.tkraise()  # Ensure the overlay is above all other widgets
 
@@ -492,7 +548,7 @@ class ContentObject(tk.Frame):
             overlay,
             text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
             font=("Arial", 48),
-            bg = self.bg_color,
+            bg = self.fill_color,
             fg = self.fg_color,
         )
         
@@ -668,6 +724,11 @@ class SideBar(tk.Frame):
             print(f'Failed: {icon_path}')
             icon = tk.PhotoImage(width = 42, height = 42)
 
+        if local_state['config']['theme'] == 'super_dark':
+            _fg_color = local_state['mc_bg_color']
+        else:
+            _fg_color = local_state['side_fg_color']
+
         button = tk.Button(
             self,
             text = text,
@@ -679,7 +740,7 @@ class SideBar(tk.Frame):
             width = int(self.winfo_width()- 5),
             command=command,
             bg = self.bg_color,
-            fg = self.fg_color,
+            fg = _fg_color,
             borderwidth = 0,
             relief = 'flat',
             activebackground = self.bg_color
@@ -802,6 +863,43 @@ class StatusPanel(tk.Frame):
 
         self.pack_propagate(False)
         self.configure(bg = local_state['side_bg_color'], height = height, width = width)
+        
+        if local_state['config']['theme'] == 'super_dark':
+            _fg_color = local_state['mc_bg_color']
+        else:
+            _fg_color = local_state['side_fg_color']
+        
+        _bg_color = local_state['side_bg_color']
+
+        _lbl_connection_title = Label(self, text = 'Connection Status:', 
+                                    font = ('Arial', 28), 
+                                    fg = _fg_color, 
+                                    bg = _bg_color)
+        
+        self.lbl_connection_state = Label(self, text = 'Not Connected',
+                                    font = ('Arial', 28),
+                                    fg = _fg_color,
+                                    bg = _bg_color)
+        
+        _frm_spacer = tk.Frame(self,
+                               width = int(width / 4), 
+                               bg = _bg_color)
+
+        _client_info_text = f'{local_state['config']['client_name']} @ {local_state['config']['client_position']}'
+        self.lbl_client_info = tk.Label(self, text = _client_info_text,
+                                     font = ('Arial', 28),
+                                     fg = _fg_color,
+                                     bg = _bg_color)
+        
+        self.grid_columnconfigure(0, weight = 0)
+        self.grid_columnconfigure(1, weight = 1)
+        self.grid_columnconfigure(2, weight = 1)
+        self.grid_columnconfigure(3, weight = 1)
+
+        _lbl_connection_title.grid(row = 0, column = 0, sticky = 'ne')
+        self.lbl_connection_state.grid(row = 0, column = 1, sticky = 'nw')
+        _frm_spacer.grid(row = 0, column = 2)
+        self.lbl_client_info.grid(row = 0, column = 3, sticky = 'ne')
 
 def get_timestamp(include_month = False):
     if include_month:
@@ -1324,9 +1422,7 @@ def tk_thread():
     settings_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
-    status_panel = StatusPanel(root, height = int((_final_height / 10)), width = int(root.winfo_width() - sidebar.winfo_width()))
-    print(f'Height Should Be: {_final_height / 10}\nWidth Should Be: {root.winfo_width() - sidebar.winfo_width()}')
-
+    status_panel = StatusPanel(root, height = (root.winfo_height() / 18), width = int(root.winfo_width() - sidebar.winfo_width()))
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
 
@@ -1370,14 +1466,13 @@ def tk_thread():
         global gradient_step, current_color
         factor = (gradient_step % 100) / 100
         next_color = _interpolate_color(pride_colors[current_color], pride_colors[(current_color + 1) % len(pride_colors)], factor)
-        main_content_panel.canvas.configure(bg=next_color)
-        main_content_panel.scrollable_frame.configure(bg=next_color)
+        main_content_panel.configure(bg=next_color)
 
         gradient_step += 1
         if gradient_step % 100 == 0:
             current_color = (current_color + 1) % len(pride_colors)
         
-        main_content_panel.after(20, _animate_background)
+        main_content_panel.after(60, _animate_background)
 
     if local_state['config']['theme'] == 'pride':
         global gradient_step, current_color
@@ -1386,8 +1481,6 @@ def tk_thread():
         _animate_background()
 
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
-    print(f'Height Is: {status_panel.winfo_height()}\nWidth Is: {status_panel.winfo_width()}')
-
     root.mainloop()
 
 def app_start():
