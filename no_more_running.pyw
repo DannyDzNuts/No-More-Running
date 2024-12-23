@@ -43,9 +43,12 @@ License:
 
     For more details, see the GNU GPL documentation.
 """
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1' 
+# Hides the pygame support message (makes console cleaner when debuging).
+# I've credited pygame in the README so they're more visible since this program doesn't show a console.
 
 import configparser
-import os
 import platform
 import time
 import threading
@@ -55,12 +58,12 @@ import secrets
 import random
 import tkinter as tk
 
+from math import radians, sin, cos
 from contextlib import redirect_stdout, redirect_stderr
 from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
 from datetime import datetime
 from queue import Queue, Empty
-from copy import deepcopy
 
 import paho.mqtt.client as mqtt # v1.6.1
 import pygame # v2.6.1
@@ -93,11 +96,11 @@ class ContentPanel(tk.Frame):
         self.num_columns = 4
         self.num_rows = 3
         self.grid_tracker = [[None for _ in range(self.num_columns)] for _ in range(self.num_rows)]
-
-        self.grid_columnconfigure(0, weight = 0)
+        
+        self.grid_columnconfigure(0, weight = 1)
         self.grid_columnconfigure(1, weight = 1)
-        self.grid_columnconfigure(2, weight = 2)
-        self.grid_columnconfigure(3, weight = 3)
+        self.grid_columnconfigure(2, weight = 1)
+        self.grid_columnconfigure(3, weight = 1)
 
         self.grid_rowconfigure(0, weight = 1)
         self.grid_rowconfigure(1, weight = 1)
@@ -200,47 +203,66 @@ class ContentPanel(tk.Frame):
                     return row, column
         return None
     
-    def _debug_gen_secobjs(self, number_to_generate=5):
-        """Generate and add sample objects to the panel for debugging purposes."""
-
+    def instantiate_main_obj(self):
+        number_to_generate = 5
         for _ in range(number_to_generate):
             _title = f"#{random.randint(1000, 9999)}"
             _flag_a = random.choice([True, False])
             _flag_b = random.choice([True, False])
 
-            # Create a new MainObject instance
-            sec_obj = ContentObject(
-                self,
-                mode = 'sec',
-                title_val = _title,
-                flag_a_val = _flag_a,
-                flag_b_val = _flag_b,
-            )
+        # Create a new MainObject instance
+        sec_obj = ContentObject(
+            self,
+            mode = 'sec',
+            title_val = _title,
+            flag_a_val = _flag_a,
+            flag_b_val = _flag_b,
+        )
 
-            sec_obj.pack(fill='x', padx=0, pady=1)
+        sec_obj.pack(fill='x', padx=0, pady=1)
+
+    def _debug_gen_secobjs(self):
+        """Generate and add sample objects to the panel for debugging purposes."""
+        object_creation_thread = threading.Thread(target = self.instatiate_main_obj, daemon = True)
+        object_creation_thread.start()
+        object_creation_thread.join()
 
 class ContentObject(tk.Canvas):
     def __init__(self, parent, mode, title_val, width, height, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
-        super().__init__(parent, bd = 1, relief = 'raised')
+        super().__init__(parent, bd = 0, relief = 'flat')
         if not mode in ('main', 'sec'): return
 
-        self.configure(height = 100)
-        self.pack_propagate(False)
-        self.bind("<Button-1>", self._set_selected)
-
-        self.width = width
-        self.height = height
-        self.configure(width=self.width, height=self.height)
-
-        self.fill_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
-        self.outline_color = self._brighten_color(local_state['mc_bg_color'], brighten_by = 5)
-        self.active_outline_color = local_state['accent_bg_color']
+        # Colors (bd = Border)
+        self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
         self.fg_color = local_state['mc_fg_color']
-        _parent_bg_color = local_state['mc_bg_color']
+        self.inactive_bd = self._brighten_color(self.inactive_bg, brighten_by = 10)
+        self.active_bd = self._brighten_color(self.inactive_bd, 30)
+
         self.is_selected = False
         self.unique_id = uuid4()
         self.corner_radius = 23
-        
+        self.width = width
+        self.height = height
+
+        if local_state['accent_bg_color'] != '':
+            self.accent_bg_color = local_state['accent_bg_color']
+        else:
+            self.accent_bg_color = '#F0F0F0'
+
+        if local_state['accent_fg_color'] != '':
+            self.accent_fg_color = local_state['accent_fg_color']
+        else:
+            self.accent_fg_color = '#0F0F0F'
+            
+        self.configure(height = self.height, 
+                        width = self.width,
+                        bd = 0, 
+                        highlightthickness = 0,
+                        bg = local_state['mc_bg_color']
+        )
+
+        self.pack_propagate(False)
+        self.bind("<Button-1>", self._set_selected)
         self._draw_object()
 
         if mode == 'main':
@@ -264,18 +286,6 @@ class ContentObject(tk.Canvas):
         else:
             _init_subtitle_val = self.unmasked_subtitle_val
 
-        if local_state['accent_bg_color'] != '':
-            self.accent_bg_color = local_state['accent_bg_color']
-        else:
-            self.accent_bg_color = '#F0F0F0'
-
-        if local_state['accent_fg_color'] != '':
-            self.accent_fg_color = local_state['accent_fg_color']
-        else:
-            self.accent_fg_color = '#0F0F0F'
-        
-        self.configure(bg = self.fill_color)
-
         # Try to load and set flag icons, create placeholder on fail. 
         try: 
             if mode == 'main' and local_state['config']['main_flags_enabled']:
@@ -290,8 +300,6 @@ class ContentObject(tk.Canvas):
                 _img_a = Image.open(_img_a_path).resize((38, 38))
                 _img_b = Image.open(_img_b_path).resize((38, 38))
             
-        
-
         except Exception as e:
             # Creates an image with a red X as a placeholder
             _placeholder = Image.new("RGBA", (38, 38), (200, 200, 200, 255))
@@ -307,23 +315,23 @@ class ContentObject(tk.Canvas):
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
-                                    bg = self.fill_color,
+                                    bg = self.inactive_bg,
                                     fg = self.fg_color,
-                                    font = ('Arial', 20, 'bold'),
+                                    font = ('Arial', 34, 'bold'),
                                     anchor = 'w')
 
-        self.lbl_title.place(relx = 0.06, rely = 0.35, anchor = 'center')
+        self.lbl_title.place(relx = 0.5, rely = 0.15, anchor = 'center')
         self.lbl_title.bind("<Button-1>", self._set_selected)
         
         if self.subtitle_enabled:
             self.lbl_subtitle = tk.Label(self,
                                             text = _init_subtitle_val,
-                                            bg = self.fill_color,
-                                            fg = self.fg_color,
+                                            bg = self.inactive_bg,
+                                            fg = self.accent_fg_color,
                                             font = ('Arial', 14),
                                             anchor = 'w')
 
-            self.lbl_subtitle.place(relx = 0.06, rely = 0.65, anchor = 'center')
+            self.lbl_subtitle.place(relx = 0.5, rely = 0.3, anchor = 'center')
             self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
         if enable_timer:
@@ -332,11 +340,11 @@ class ContentObject(tk.Canvas):
 
             self.lbl_timer = tk.Label(self,
                                         text = self._format_time(),
-                                        font = ('Ariel', 20),
-                                        bg = self.fill_color,
+                                        font = ('Ariel', 20, 'bold'),
+                                        bg = self.inactive_bg,
                                         fg = self.fg_color)
 
-            self.lbl_timer.place(relx = 0.86, rely = 0.5, anchor = 'center')
+            self.lbl_timer.place(relx = 0.5, rely = 0.5, anchor = 'center')
             self.lbl_timer.bind("<Button-1>", self._set_selected)
         
 
@@ -358,57 +366,89 @@ class ContentObject(tk.Canvas):
             self.lbl_flag_a = tk.Label(self,
                                         text = _flag_a_name,
                                         font = ('Arial', 16),
-                                        bg = self.fill_color,
-                                        fg = self.fg_color)
+                                        bg = self.inactive_bg,
+                                        fg = self.accent_fg_color)
             
             self.cont_flag_a = tk.Label(self,
                                         image = self.img_flag_a,
-                                        bg = self.fill_color)
+                                        bg = self.inactive_bg)
             
             self.lbl_flag_b = tk.Label(self,
                                         text = _flag_b_name,
                                         font = ('Arial', 16),
-                                        bg = self.fill_color,
-                                        fg = self.fg_color)
+                                        bg = self.inactive_bg,
+                                        fg = self.accent_fg_color)
             
             self.cont_flag_b = tk.Label(self,
                                             image = self.img_flag_b,
-                                            bg = self.fill_color)
+                                            bg = self.inactive_bg)
             
             if flag_a_val:
-                self.lbl_flag_a.place(relx = 0.15, rely = 0.25, anchor = 'center')
-                self.cont_flag_a.place(relx = 0.15, rely = 0.65, anchor = 'center')
+                self.lbl_flag_a.place(relx = 0.3, rely = 0.7, anchor = 'center')
+                self.cont_flag_a.place(relx = 0.3, rely = 0.85, anchor = 'center')
                 self.lbl_flag_a.bind('<Button-1>', self._set_selected)
                 self.cont_flag_a.bind('<Button-1>', self._set_selected)
 
             if flag_b_val:
-                self.lbl_flag_b.place(relx = 0.22, rely = 0.25, anchor = 'center')
-                self.cont_flag_b.place(relx = 0.22, rely = 0.65, anchor = 'center')
+                self.lbl_flag_b.place(relx = 0.7, rely = 0.7, anchor = 'center')
+                self.cont_flag_b.place(relx = 0.7, rely = 0.85, anchor = 'center')
                 self.lbl_flag_b.bind('<Button-1>', self._set_selected)
                 self.cont_flag_b.bind('<Button-1>', self._set_selected)
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
+        self.update_idletasks()
         self.time_thread.start()
     
-    def _draw_object(self, outline_color = None):
-        """Draw a rounded rectangle background."""
+    def _draw_object(self, outline_color=None, fill=None, _border_thickness=2):
+        """Draw a rounded rectangle background with an outside border using polygons."""
         self.delete("all")  # Clear any previous drawings
         radius = self.corner_radius
 
-        if not outline_color is None:
-            pass
-        else:
-            outline_color = self.outline_color
+        if outline_color is None:
+            outline_color = self.inactive_bd
 
-        # Draw corners using arcs
-        self.create_arc((0, 0, 2 * radius, 2 * radius), start=90, extent=90, fill=self.fill_color, outline=outline_color)
-        self.create_arc((self.width - 2 * radius, 0, self.width, 2 * radius), start=0, extent=90, fill=self.fill_color, outline=outline_color)
-        self.create_arc((0, self.height - 2 * radius, 2 * radius, self.height), start=180, extent=90, fill=self.fill_color, outline=outline_color)
-        self.create_arc((self.width - 2 * radius, self.height - 2 * radius, self.width, self.height), start=270, extent=90, fill=self.fill_color, outline=outline_color)
+        if fill is None:
+            fill = self.inactive_bg
 
-        # Draw rectangles to fill the remaining parts
-        self.create_rectangle((radius, 0, self.width - radius, self.height), fill=self.fill_color, outline=outline_color)
-        self.create_rectangle((0, radius, self.width, self.height - radius), fill=self.fill_color, outline=outline_color)
+        steps = 5  # Number of steps for smooth rounded corners
+
+    # Helper to generate points for an arc
+        def generate_arc_points(x, y, radius, start_angle, end_angle, steps):
+
+            points = []
+            for step in range(steps + 1):
+                angle = radians(start_angle + step * (end_angle - start_angle) / steps)
+                points.append((x + radius * cos(angle), y + radius * sin(angle)))
+            return points
+
+        # Generate points for the filled rounded rectangle
+        filled_points = []
+        # Top-left corner
+        filled_points += generate_arc_points(radius, radius, radius, 180, 270, steps)
+        # Top-right corner
+        filled_points += generate_arc_points(self.width - radius, radius, radius, 270, 360, steps)
+        # Bottom-right corner
+        filled_points += generate_arc_points(self.width - radius, self.height - radius, radius, 0, 90, steps)
+        # Bottom-left corner
+        filled_points += generate_arc_points(radius, self.height - radius, radius, 90, 180, steps)
+
+        # Draw the filled background
+        self.create_polygon(filled_points, fill=fill, outline="", smooth=True)
+
+        # Generate points for the border
+        border_points = []
+        # Top-left corner
+        border_points += generate_arc_points(radius, radius, radius - _border_thickness / 2, 180, 270, steps)
+        # Top-right corner
+        border_points += generate_arc_points(self.width - radius, radius, radius - _border_thickness / 2, 270, 360, steps)
+        # Bottom-right corner
+        border_points += generate_arc_points(self.width - radius, self.height - radius, radius - _border_thickness / 2, 0, 90, steps)
+        # Bottom-left corner
+        border_points += generate_arc_points(radius, self.height - radius, radius - _border_thickness / 2, 90, 180, steps)
+
+        # Draw the border
+        self.create_polygon(border_points, fill="", outline=outline_color, width=_border_thickness, smooth=True)
+
 
     def _format_time(self):
         hours, remainder = divmod(self.time_elapsed, 3600)
@@ -446,7 +486,6 @@ class ContentObject(tk.Canvas):
 
     def _set_selected(self, _is_selected):
         """Change the appearance of the widget to indicate selection."""
-        self._draw_object(outline_color = local_state['accent_bg_color'])
 
         _other_object_active = local_state['is_object_active']
 
@@ -460,67 +499,54 @@ class ContentObject(tk.Canvas):
         _other_object_active = local_state['is_object_active']
 
         if not self.is_selected and not _other_object_active:
-                if hasattr(self, 'lbl_flag_a'):
-                    self.cont_flag_a.configure(bg = self.accent_bg_color)
-                    self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+            self._draw_object(outline_color = self.active_bd, fill = self.accent_bg_color)
+            # self.configure(bg = local_state['mc_bg'])
+            if hasattr(self, 'lbl_flag_a'):
+                self.cont_flag_a.configure(bg = self.accent_bg_color)
+                self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
 
-                if hasattr(self, 'lbl_flag_b'):
-                    self.cont_flag_b.configure(bg = self.accent_bg_color)
-                    self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
-                
-                if self.accent_fg_color != '':
-                    self.lbl_title.configure(fg = self.accent_fg_color)
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color)
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color)
-                else:
-                    self.lbl_title.configure(fg = '#0F0F0F')
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = '#0F0F0F')
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = '#0F0F0F')
-                
-                if self.accent_bg_color != '':
-                    self.lbl_title.configure(bg = self.accent_bg_color)
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = self.accent_bg_color)
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = self.accent_bg_color)
-                else:
-                    self.lbl_title.configure(bg = '#F0F0F0')
-                    if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(bg = '#F0F0F0')
-                    if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(bg = '#F0F0F0')
-                
-                if self.masking_enabled:
-                    self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
+            if hasattr(self, 'lbl_flag_b'):
+                self.cont_flag_b.configure(bg = self.accent_bg_color)
+                self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
+            
+            self.lbl_title.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
+            if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
+            if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
 
-                self.is_selected = True
-                update_local_state('is_object_active', True)
-                update_local_state('active_obj_id', self.unique_id)
+            if self.masking_enabled:
+                self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
+
+            self.is_selected = True
+            update_local_state('is_object_active', True)
+            update_local_state('active_obj_id', self.unique_id)
 
         elif self.is_selected:
             self.deselect()
 
     def deselect(self):
-        self.configure(bg = self.fill_color)
-        self.lbl_title.configure(bg = self.fill_color)
+        self.configure(bg = local_state['mc_bg_color'])
+        self.lbl_title.configure(bg = self.inactive_bg)
+        self._draw_object()
 
         if hasattr(self, 'cont_flag_a'):
-            self.cont_flag_a.configure(bg = self.fill_color)
-            self.lbl_flag_a.configure(bg = self.fill_color)
+            self.cont_flag_a.configure(bg = self.inactive_bg)
+            self.lbl_flag_a.configure(bg = self.inactive_bg)
             self.lbl_flag_a.configure(fg = self.fg_color)
 
         if hasattr(self, 'cont_flag_b'):
-            self.cont_flag_b.configure(bg = self.fill_color)
-            self.lbl_flag_b.configure(bg = self.fill_color)
+            self.cont_flag_b.configure(bg = self.inactive_bg)
+            self.lbl_flag_b.configure(bg = self.inactive_bg)
             self.lbl_flag_b.configure(fg = self.fg_color)
         
         self.lbl_title.configure(fg = self.fg_color)
         
         if hasattr(self, 'lbl_subtitle'): 
             self.lbl_subtitle.configure(fg = self.fg_color)
-            self.lbl_subtitle.configure(bg = self.fill_color)
+            self.lbl_subtitle.configure(bg = self.inactive_bg)
         
         if hasattr(self, 'lbl_timer'): 
             self.lbl_timer.configure(fg = self.fg_color)
-            self.lbl_timer.configure(bg = self.fill_color)
-
-        self.configure(bg = self.fill_color)
+            self.lbl_timer.configure(bg = self.inactive_bg)
 
         if self.masking_enabled:
             self.lbl_subtitle.configure(text = self.masked_subtitle_val)
@@ -1517,12 +1543,12 @@ def app_start():
     themes = {
         'light': {
             'mc_bg_color': '#E5D9F2',
-            'mc_fg_color': '#0F0F0F',
+            'mc_fg_color': '#000000',
             'side_bg_color': '#A594F9',
             'side_fg_color': '#000000',
             'accent_color': '#A594F9',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#000000',
+            'accent_bg_color': '#A594F9'
         },
 
         'light_blue': {
@@ -1547,12 +1573,12 @@ def app_start():
 
         'dark': {
             'mc_bg_color': '#2B2B2B',
-            'mc_fg_color': '#F0F0F0',
+            'mc_fg_color': '#0F0F0F',
             'side_bg_color': '#3C3C3C',
             'side_fg_color': '#F0F0F0',
             'accent_color': '#4F4F4F',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#0F0F0F',
+            'accent_bg_color': '#F0F0F0'
         },
 
         'high_contrast_cyan': {
