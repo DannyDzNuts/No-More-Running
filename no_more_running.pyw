@@ -97,24 +97,8 @@ class ContentPanel(tk.Frame):
         self.num_rows = 3
         self.objs_per_page = 12
         self.grid_tracker = [[None for _ in range(self.num_columns)] for _ in range(self.num_rows)]
-        self.current_main_page = 1
-        self.current_sec_page = 1
-        self.mode = mode
 
-        self.main_objs = list(local_state['main_obj_refs']) if mode == 'main' and local_state['main_obj_refs'] else []
-        self.sec_objs = list(local_state['sec_obj_refs']) if mode == 'sec' and local_state['sec_obj_refs'] else []
-        
-        if mode == 'main':
-            self.total_main_pages = max((len(self.main_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-        elif mode == 'sec':
-            self.total_sec_pages = max((len(self.sec_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-
-        if self.main_objs and self.mode == 'main':
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.sec_objs and self.mode == 'sec':
-            self.populate_grid(self.current_sec_page, self.mode)
-
-        self.grid_columnconfigure(0, weight = 1)
+        self.grid_columnconfigure(0, weight = 0)
         self.grid_columnconfigure(1, weight = 1)
         self.grid_columnconfigure(2, weight = 1)
         self.grid_columnconfigure(3, weight = 1)
@@ -452,7 +436,7 @@ class ContentObject(tk.Canvas):
         if self.subtitle_enabled:
             self.lbl_subtitle = tk.Label(self,
                                             text = _init_subtitle_val,
-                                            bg = self.inactive_bg,
+                                            bg = self.fill_color,
                                             fg = self.fg_color,
                                             font = ('Arial', 14),
                                             anchor = 'w')
@@ -492,7 +476,7 @@ class ContentObject(tk.Canvas):
             self.lbl_flag_a = tk.Label(self,
                                         text = _flag_a_name,
                                         font = ('Arial', 16),
-                                        bg = self.inactive_bg,
+                                        bg = self.fill_color,
                                         fg = self.fg_color)
             
             self.cont_flag_a = tk.Label(self,
@@ -502,7 +486,7 @@ class ContentObject(tk.Canvas):
             self.lbl_flag_b = tk.Label(self,
                                         text = _flag_b_name,
                                         font = ('Arial', 16),
-                                        bg = self.inactive_bg,
+                                        bg = self.fill_color,
                                         fg = self.fg_color)
             
             self.cont_flag_b = tk.Label(self,
