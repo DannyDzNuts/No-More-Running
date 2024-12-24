@@ -527,7 +527,7 @@ class ContentObject(tk.Canvas):
     
     def _draw_object(self, outline_color=None, fill=None, _border_thickness=2):
         """Draw a rounded rectangle background with an outside border using polygons."""
-        self.delete("all")  # Clear any previous drawings
+        self.delete("all")
         radius = self.corner_radius
 
         if outline_color is None:
@@ -536,9 +536,8 @@ class ContentObject(tk.Canvas):
         if fill is None:
             fill = self.inactive_bg
 
-        steps = 5  # Number of steps for smooth rounded corners
+        steps = 5
 
-    # Helper to generate points for an arc
         def generate_arc_points(x, y, radius, start_angle, end_angle, steps):
 
             points = []
@@ -547,7 +546,6 @@ class ContentObject(tk.Canvas):
                 points.append((x + radius * cos(angle), y + radius * sin(angle)))
             return points
 
-        # Generate points for the filled rounded rectangle
         filled_points = []
         # Top-left corner
         filled_points += generate_arc_points(radius, radius, radius, 180, 270, steps)
@@ -572,7 +570,7 @@ class ContentObject(tk.Canvas):
         # Bottom-left corner
         border_points += generate_arc_points(radius, self.height - radius, radius - _border_thickness / 2, 90, 180, steps)
 
-        # Draw the border
+        # Border
         self.create_polygon(border_points, fill="", outline=outline_color, width=_border_thickness, smooth=True)
 
 
@@ -1035,7 +1033,7 @@ class StatusPanel(tk.Frame):
                                width = int(width / 4), 
                                bg = _bg_color)
 
-        _client_info_text = f'{local_state['config']['client_name']} @ {local_state['config']['client_position']}'
+        _client_info_text = (f'{local_state['config']['client_name']} @ {local_state['config']['client_position']}')
         self.lbl_client_info = tk.Label(self, text = _client_info_text,
                                      font = ('Arial', 28),
                                      fg = _fg_color,
