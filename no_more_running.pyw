@@ -280,7 +280,7 @@ class ContentPanel(tk.Frame):
             
             _active_obj.page()
 
-    def _debug_gen_mainobjs(self, number_to_generate=5):
+    def _debug_gen_mainobjs(self, number_to_generate=1):
         """Generate and add sample objects to the panel for debugging purposes."""
 
         def _generate_phone_number():
