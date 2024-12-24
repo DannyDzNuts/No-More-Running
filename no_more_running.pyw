@@ -279,6 +279,10 @@ class ContentPanel(tk.Frame):
                 _active_obj = local_state['sec_obj_refs'][_active_obj_id]
             
             _active_obj.page()
+    def _trigger_gen_mainobj(self):
+        temp_thread = threading.Thread(target = self._debug_gen_mainobjs(), daemon = True)
+        temp_thread.start()
+        temp_thread.join()
 
     def _debug_gen_mainobjs(self, number_to_generate=1):
         """Generate and add sample objects to the panel for debugging purposes."""
@@ -851,7 +855,7 @@ class SideBar(tk.Frame):
             'remove': self._create_sidebar_button('Remove', 'delete.png', command=self._delete_object),
             'exit': self._create_sidebar_button('Exit', 'exit.png', command=self._exit_program),
             'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._show_set_panel),
-            'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._debug_gen_mainobjs),
+            'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._trigger_gen_mainobj),
             'page_active': self._create_sidebar_button('Page Active', 'page.png', command = self.main_content_panel._page_active)
         }
 
