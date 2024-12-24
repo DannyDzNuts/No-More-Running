@@ -1033,7 +1033,7 @@ class StatusPanel(tk.Frame):
                                width = int(width / 4), 
                                bg = _bg_color)
 
-        _client_info_text = (f'{local_state['config']['client_name']} @ {local_state['config']['client_position']}')
+        _client_info_text = (f"{local_state['config']['client_name']} @ {local_state['config']['client_position']}")
         self.lbl_client_info = tk.Label(self, text = _client_info_text,
                                      font = ('Arial', 28),
                                      fg = _fg_color,
