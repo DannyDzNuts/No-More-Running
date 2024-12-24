@@ -88,15 +88,32 @@ config_initialized = threading.Event() # Prevents race condition with logic / mq
 pygame.mixer.init()
 
 class ContentPanel(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, mode = 'main', *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
 
         self.configure(bg = local_state['mc_bg_color'])
 
         self.num_columns = 4
         self.num_rows = 3
+        self.objs_per_page = 12
         self.grid_tracker = [[None for _ in range(self.num_columns)] for _ in range(self.num_rows)]
+        self.current_main_page = 1
+        self.current_sec_page = 1
+        self.mode = mode
+
+        self.main_objs = list(local_state['main_obj_refs']) if mode == 'main' and local_state['main_obj_refs'] else []
+        self.sec_objs = list(local_state['sec_obj_refs']) if mode == 'sec' and local_state['sec_obj_refs'] else []
         
+        if mode == 'main':
+            self.total_main_pages = max((len(self.main_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
+        elif mode == 'sec':
+            self.total_sec_pages = max((len(self.sec_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
+
+        if self.main_objs and self.mode == 'main':
+            self.populate_grid(self.current_main_page, self.mode)
+        elif self.sec_objs and self.mode == 'sec':
+            self.populate_grid(self.current_sec_page, self.mode)
+
         self.grid_columnconfigure(0, weight = 1)
         self.grid_columnconfigure(1, weight = 1)
         self.grid_columnconfigure(2, weight = 1)
@@ -107,9 +124,13 @@ class ContentPanel(tk.Frame):
         self.grid_rowconfigure(2, weight = 1)
         self.grid_rowconfigure(3, weight = 1)
 
-        self.nav_backdrop = tk.Canvas(self, width = 100, height = 50, bg = local_state['mc_bg_color'])
 
-        self.nav_backdrop.create_rectangle(0, 0, 350, 250, fill = '#000000', outline = '')
+        self.nav_bar = tk.Canvas(self, 
+                                      width = 300, 
+                                      height = 75, 
+                                      bg = local_state['side_bg_color'],
+                                      highlightthickness = 0)
+        
         try:
             _img_left_arrow_path = os.path.join(IMG_DIR, 'arrow_left.png')
             _img_right_arrow_path = os.path.join(IMG_DIR, 'arrow_right.png')
@@ -136,18 +157,119 @@ class ContentPanel(tk.Frame):
         self.img_first_page = ImageTk.PhotoImage(_img_first_page)
         self.img_last_page = ImageTk.PhotoImage(_img_last_page)
 
-        self.cont_img_left_arrow = Label(self, image = self.img_left_arrow, bg = local_state['mc_bg_color'])
-        self.cont_img_right_arrow = Label(self, image = self.img_right_arrow, bg = local_state['mc_bg_color'])
-        self.cont_img_first_page = Label(self, image = self.img_first_page, bg = local_state['mc_bg_color'])
-        self.cont_img_last_page = Label(self, image = self.img_last_page, bg = local_state['mc_bg_color'])
+        self.cont_img_left_arrow = Label(self.nav_bar, 
+                                         image = self.img_left_arrow, 
+                                         bg = local_state['side_bg_color'], 
+                                         )
+        
+        self.cont_img_right_arrow = Label(self.nav_bar, 
+                                          image = self.img_right_arrow, 
+                                          bg = local_state['side_bg_color'], 
+                                          )
+        
+        self.cont_img_first_page = Label(self.nav_bar, 
+                                         image = self.img_first_page, 
+                                         bg = local_state['side_bg_color'], 
+                                         )
+        
+        self.cont_img_last_page = Label(self.nav_bar, 
+                                        image = self.img_last_page, 
+                                        bg = local_state['side_bg_color'], 
+                                        )
 
-        self.nav_backdrop.place(relx = 0.9, rely = 0.95)
-        self.cont_img_first_page.place(relx = 0.8, rely = 0.93)
-        self.cont_img_left_arrow.place(relx = 0.85, rely = 0.92)
-        self.cont_img_right_arrow.place(relx = 0.9, rely = 0.92)
-        self.cont_img_last_page.place(relx = 0.96, rely = 0.93)
+        self.cont_img_left_arrow.bind("<Button-1>", lambda e: self.go_to_previous_page(self.mode))
+        self.cont_img_right_arrow.bind("<Button-1>", lambda e: self.go_to_next_page(self.mode))
+        self.cont_img_first_page.bind("<Button-1>", lambda e: self.go_to_first_page(self.mode))
+        self.cont_img_last_page.bind("<Button-1>", lambda e: self.go_to_last_page(self.mode))
 
-    def _page_active(self):
+        self.nav_bar.place(relx = 0.84, rely = 0.93)
+        self.cont_img_first_page.place(relx = 0.05, rely = 0.2)
+        self.cont_img_left_arrow.place(relx = 0.28, rely = 0.1)
+        self.cont_img_right_arrow.place(relx = 0.52, rely = 0.1)
+        self.cont_img_last_page.place(relx = 0.8, rely = 0.21)
+
+    def add_object(self, obj, mode):
+        if mode == 'main':
+            self.main_objs.append(obj)
+            self.total_main_pages = max((len(self.main_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
+        else:
+            self.sec_objs.append(obj)
+            self.total_sec_pages = max((len(self.sec_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
+
+        self.populate_grid(self.current_main_page, mode)
+
+    def get_page(self, page_number, mode):
+        items = self.main_objs if mode == 'main' else self.sec_objs
+
+        start_index = (page_number - 1) * self.objs_per_page
+        end_index = start_index + self.objs_per_page
+        return items[start_index:end_index]
+
+
+    def clear_grid(self):
+        """Remove objects from the grid without destroying them."""
+        for row in range(self.num_rows):
+            for col in range(self.num_columns):
+                if self.grid_tracker[row][col] is not None:
+                    self.grid_tracker[row][col].grid_forget()  # Hide the widget
+                    self.grid_tracker[row][col] = None
+
+
+    def populate_grid(self, page_number, mode):
+        self.clear_grid()  # Clear the current grid
+
+        items = self.get_page(page_number, mode)
+
+        if not items:  # If no items exist, just return without doing anything
+            return
+
+        for obj in items:
+            row, column = self._find_next_cell(self.grid_tracker)
+            if row is not None and column is not None:
+                obj.grid(row=row, column=column)
+                self.grid_tracker[row][column] = obj
+
+    @property
+    def total_pages(self):
+        objs = self.main_objs if self.mode == 'main' else self.sec_objs
+        total = max((len(objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
+        return total
+
+
+    def go_to_next_page(self, event=None):
+        if self.mode == 'main' and self.current_main_page < self.total_pages:
+            self.current_main_page += 1
+            self.populate_grid(self.current_main_page, self.mode)
+        elif self.mode == 'sec' and self.current_sec_page < self.total_pages:
+            self.current_sec_page += 1
+            self.populate_grid(self.current_sec_page, self.mode)
+
+
+    def go_to_previous_page(self, event = None):
+        if self.mode == 'main' and self.current_main_page > 1:
+            self.current_main_page -= 1
+            self.populate_grid(self.current_main_page, self.mode)
+        elif self.mode == 'sec' and self.current_sec_page > 1:
+            self.current_sec_page -= 1
+            self.populate_grid(self.current_sec_page, self.mode)
+
+    def go_to_first_page(self, event = None):
+        if self.mode == 'main' and self.current_main_page != 1:
+            self.current_main_page = 1
+            self.populate_grid(self.current_main_page, self.mode)
+        elif self.mode == 'sec' and self.current_sec_page != 1:
+            self.current_sec_page = 1
+            self.populate_grid(self.current_sec_page, self.mode)
+
+    def go_to_last_page(self, event = None):
+        if self.mode == 'main' and self.current_main_page != self.total_pages:
+            self.current_main_page = self.total_pages
+            self.populate_grid(self.current_main_page, self.mode)
+        elif self.mode == 'sec' and self.current_sec_page != self.total_pages:
+            self.current_sec_page = self.total_pages
+            self.populate_grid(self.current_sec_page, self.mode)
+
+    def _page_active(self, event = None):
         if local_state.get('active_obj_id') not in (None, ''):
             _active_obj_id = str(local_state.get('active_obj_id'))
             
@@ -181,19 +303,23 @@ class ContentPanel(tk.Frame):
             # Create a new MainObject instance
             main_obj = ContentObject(
                 self,
-                mode = 'main',
-                title_val = _title,
-                width = int(self.winfo_width() / 5),
-                height = int(self.winfo_height() / 4),
-                enable_timer = True,
-                subtitle_val = _subtitle_val,
-                flag_a_val = _flag_a,
-                flag_b_val = _flag_b,
+                mode='main',
+                title_val=_title,
+                width=int(self.winfo_width() / 5),
+                height=int(self.winfo_height() / 4),
+                enable_timer=True,
+                subtitle_val=_subtitle_val,
+                flag_a_val=_flag_a,
+                flag_b_val=_flag_b,
             )
 
-            row, column = self._find_next_cell(self.grid_tracker)
-            if row is not None and column is not None:
-                main_obj.grid(row = row, column = column)
+            self.main_objs.append(main_obj)
+
+            # Find the next available cell
+            cell = self._find_next_cell(self.grid_tracker)
+            if cell is not None:
+                row, column = cell
+                main_obj.grid(row=row, column=column)
                 self.grid_tracker[row][column] = main_obj
 
     def _find_next_cell(self, grid_tracker):
@@ -327,7 +453,7 @@ class ContentObject(tk.Canvas):
             self.lbl_subtitle = tk.Label(self,
                                             text = _init_subtitle_val,
                                             bg = self.inactive_bg,
-                                            fg = self.accent_fg_color,
+                                            fg = self.fg_color,
                                             font = ('Arial', 14),
                                             anchor = 'w')
 
@@ -367,7 +493,7 @@ class ContentObject(tk.Canvas):
                                         text = _flag_a_name,
                                         font = ('Arial', 16),
                                         bg = self.inactive_bg,
-                                        fg = self.accent_fg_color)
+                                        fg = self.fg_color)
             
             self.cont_flag_a = tk.Label(self,
                                         image = self.img_flag_a,
@@ -377,7 +503,7 @@ class ContentObject(tk.Canvas):
                                         text = _flag_b_name,
                                         font = ('Arial', 16),
                                         bg = self.inactive_bg,
-                                        fg = self.accent_fg_color)
+                                        fg = self.fg_color)
             
             self.cont_flag_b = tk.Label(self,
                                             image = self.img_flag_b,
@@ -561,7 +687,7 @@ class ContentObject(tk.Canvas):
         root = self.winfo_toplevel()
 
         # Create a semi-transparent full-screen overlay
-        overlay = tk.Frame(root, bg = self.fill_color)
+        overlay = tk.Frame(root, bg = self.inactive_bg)
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         overlay.tkraise()  # Ensure the overlay is above all other widgets
 
@@ -574,7 +700,7 @@ class ContentObject(tk.Canvas):
             overlay,
             text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
             font=("Arial", 48),
-            bg = self.fill_color,
+            bg = self.inactive_bg,
             fg = self.fg_color,
         )
         
@@ -614,7 +740,6 @@ class ContentObject(tk.Canvas):
                         time.sleep(sound.get_length())
                         time.sleep(10)  # Delay between plays
                     except Exception as e:
-                        print(f"Error playing sound: {e}")
                         break
                     iteration += 1
 
@@ -747,7 +872,6 @@ class SideBar(tk.Frame):
             icon_image = Image.open(icon_path).resize((42, 42))
             icon = ImageTk.PhotoImage(icon_image)
         except FileNotFoundError:
-            print(f'Failed: {icon_path}')
             icon = tk.PhotoImage(width = 42, height = 42)
 
         if local_state['config']['theme'] == 'super_dark':
@@ -1444,7 +1568,7 @@ def tk_thread():
     max_sidebar_width = int(_root_max_width / 8)
 
     main_content_panel = ContentPanel(root)
-    sec_content_panel = ContentPanel(root)
+    sec_content_panel = ContentPanel(root, mode = 'sec')
     settings_content_panel = ContentPanel(root)
 
     sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
