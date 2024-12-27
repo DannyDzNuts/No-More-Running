@@ -1036,7 +1036,7 @@ def get_timestamp(include_month = False):
     else:
         return time.strftime('%H:%M:%S')
     
-def get_error_message(_e, _catagory = 'general'):
+def get_error_message(err, catagory = 'general'):
     _error_messages = {
         'configuration': {FileNotFoundError: lambda e: f'No config file was detected and one could not be created.\nExpected File Location: {e}',
                         PermissionError: lambda e: f'No config file was detected and NMR does not have permission to write a new one to disk.\n Error: {e}',
@@ -1058,13 +1058,46 @@ def get_error_message(_e, _catagory = 'general'):
                                 TypeError: lambda e: f'Invalid key type. Supplied key is not in bytes format.\nError: {e}'}
     }
     
-    _error_catagory = _error_messages.get(_catagory)
+    _error_catagory = _error_messages.get(catagory)
     if _error_catagory: 
-        _message_function = _error_messages.get(type(_e))
-        if _message_function: return _message_function(_e)
+        _message_function = _error_messages.get(type(err))
+        if _message_function: return _message_function(err)
     
     return None
 
+def report_error(error, function, catagory = 'general', err_level = 'warn', interrupt_user = False, write_to_disk = False, stop_program = False, custom_message = ''):
+    _admin_message = (f'[{get_timestamp}]    Level: {err_level}    Function: {function}    Error: {error}')
+    
+    def show_interrupt(): # Sends request to tk thread to notify user of issue
+        ui_ready_event.wait()
+        local_state['req_to_tk_thread'].put(('interrupt_user', _user_message, stop_program))
+        
+        if write_failure: # Hijacks the event to ensure users have time to write down errors if error cannot be written to disk
+            ui_ready_event.clear()
+            ui_ready_event.wait()
+
+        return
+    
+    if not custom_message == '': # Custom messages override default messages
+        _user_message = custom_message
+    else:
+        get_error_message(error, catagory)
+            
+    if write_to_disk: # Tries to write to disk, on failure alerts user for manual reporting
+        try:
+            with open(LOG_FILE, 'a') as file:
+                file.write(_admin_message)
+        except:
+            _user_message = 'An error has occured but was not able to be logged.\nPlease write this down and give it to your administrator:\n{_admin_message}'
+            interrupt_user = True
+            write_failure = True
+            
+    if interrupt_user:
+        show_interrupt()
+    
+    if stop_program:
+        exit(0)
+        
 def generate_default_config(parser):
     _default_config = {
         'GUI': {
@@ -1120,15 +1153,20 @@ def write_config_to_file(parser = None):
             parser.write(file)
 
     except Exception as e:
-        err_function = 'write_config_to_file'
-        err_action = 'write_default_config'
-        err_message = get_error_message(e, 'config')
-
-        if err_message:
-            local_state['to_logic_thread'].put((f'report_error,crit,False,False,{err_function}: {err_action},{err_message}'))
-        else:
-            local_state['to_logic_thread'].put((f'report_error,crit,False,False,{err_function}: {err_action},{e}'))
-
+        function = 'write_config_to_file'
+        error = e
+        level = 'crit'
+        catagory = 'disk'
+        
+        
+        report_error(error, 
+                    function, 
+                    catagory = catagory, 
+                    err_level = level, 
+                    interrupt_user = True, 
+                    write_to_disk = True, 
+                    stop_program = False)
+        
 def get_config():
     ''' Retrieves stored configuration or creates a new config file / loads defaults
         if no config file is found / accessible '''
@@ -1145,11 +1183,22 @@ def get_config():
             parser = configparser.ConfigParser()
             parser.read(CONFIG_FILE)
         except Exception as e:
-            err_message = get_error_message(e, 'config')
-
-            if err_message:
-                local_state['req_to_tk_thread'].put((f'error_report,crit,True,True,get_config: parser.read(CONFIG_FILE),{err_message}'))
-    
+            error = e
+            function = 'get_config'
+            catagory = 'disk'
+            level = 'crit'
+            interrupt = True
+            write = True
+            stop = True
+            
+            report_error(error,
+                         function,
+                         catagory,
+                         level,
+                         interrupt,
+                         write,
+                         stop)
+            
     config = {'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
             'vkeyboard': parser.getboolean('GUI', 'vkeyboard', fallback = True),
             'theme': parser.get('GUI', 'theme', fallback = 'dark'),
@@ -1180,8 +1229,9 @@ def get_config():
     if config: 
         config_initialized.set()
         return config
-    
-def load_images():
+
+#Pre-load images to reduce object creation times.
+def load_images(): 
     def _generate_placeholder_img():
         _placeholder = Image.new('RGBA', (38, 38), (200, 200, 200, 255))
         _draw = ImageDraw.Draw(_placeholder)
@@ -1189,27 +1239,32 @@ def load_images():
         _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
 
         return _placeholder
-    #Pre-load images to reduce object creation times.
     
     items = ['main_flag_a.png', 'main_flag_b.png', 'sec_flag_a.png', 'sec_flag_b.png']
     for item in items:
         try:
             _path = os.path.join(IMG_DIR, item)
             _img = Image.open(_path).resize((38, 38))
-        except:
+        except Exception as e:
             _img = _generate_placeholder_img()
+            
+            error = e
+            function = 'load_images'
+            catagory = 'disk'
+            level = 'warn'
+            interrupt = False
+            write = True
+            
+            report_error(error, function, catagory, level, interrupt, write)
 
         _img_obj = ImageTk.PhotoImage(_img)
         _img_name = os.path.splitext(item)[0]
         update_local_state('images', {_img_name: _img_obj})
 
-# Used to safely update program state - queues are updated directly
+# Used to safely update program state - queues are updated directly, config changes are written to disk
 def update_local_state(key, value, section=None, sub_section=None):
     global local_state
-    """
-    Thread-safe way to live update program configuration and write
-    changes to disk. Ensures that missing keys are initialized as needed.
-    """
+
     with lock:
         if section is not None:
             print('Section Detected: {section}')
@@ -1530,6 +1585,9 @@ def logic_thread():
 
 def tk_thread():
     global local_state
+    global ui_ready_event
+    
+    ui_ready_event = threading.Event() # Signals to the rest of the program that they can it with the UI
 
     root = tk.Tk()
     root.title(f'No More Running v{PROG_VER}')
@@ -1643,13 +1701,14 @@ def tk_thread():
     update_local_state('images', load_images())
     load_images()
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
+    root.after(5000, ui_ready_event.set())
     root.mainloop()
 
 def app_start():
     global local_state
 
     local_state = {
-        'config':get_config(), # Also loads images / creates placeholder images. These are stored in local_state['images']
+        'config':get_config(),
         'images': {},
         'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
         'sec_obj_refs': {},
