@@ -361,6 +361,7 @@ class ContentObject(tk.Canvas):
     def __init__(self, parent, mode, title_val, width, height, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
         super().__init__(parent, bd = 0, relief = 'flat')
         if not mode in ('main', 'sec'): return
+        global local_state
 
         # Colors (bd = Border)
         self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
@@ -416,32 +417,8 @@ class ContentObject(tk.Canvas):
         else:
             _init_subtitle_val = self.unmasked_subtitle_val
 
-        # Try to load and set flag icons, create placeholder on fail. 
-        try: 
-            if mode == 'main' and local_state['config']['main_flags_enabled']:
-                _img_a_path = os.path.join(IMG_DIR, 'main_flag_a.png')
-                _img_b_path = os.path.join(IMG_DIR, 'main_flag_b.png')
-                _img_a = Image.open(_img_a_path).resize((38, 38))
-                _img_b = Image.open(_img_b_path).resize((38, 38))
-
-            elif local_state['config']['sec_flags_enabled']:
-                _img_a_path = os.path.join(IMG_DIR, 'sec_flag_a.png')
-                _img_b_path = os.path.join(IMG_DIR, 'sec_flag_b.png')
-                _img_a = Image.open(_img_a_path).resize((38, 38))
-                _img_b = Image.open(_img_b_path).resize((38, 38))
-            
-        except Exception as e:
-            # Creates an image with a red X as a placeholder
-            _placeholder = Image.new("RGBA", (38, 38), (200, 200, 200, 255))
-            _draw = ImageDraw.Draw(_placeholder)
-            _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
-            _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
-
-            _img_a = _placeholder
-            _img_b = _placeholder
-        
-        self.img_flag_a = ImageTk.PhotoImage(_img_a)
-        self.img_flag_b = ImageTk.PhotoImage(_img_b)
+        self.img_flag_a = local_state['images']['main_flag_a']
+        self.img_flag_b = local_state['images']['main_flag_b']
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
@@ -540,7 +517,7 @@ class ContentObject(tk.Canvas):
         if fill is None:
             fill = self.inactive_bg
 
-        steps = 5
+        steps = 1
 
         def generate_arc_points(x, y, radius, start_angle, end_angle, steps):
 
@@ -1199,27 +1176,60 @@ def get_config():
             'backup_psk': parser.get('SECRETS', 'client_backup_psk', fallback = 'EXAMPLEb712e17c9614e2871657d5eab21faba79a59f37000cf3afac3f9486ec'),
             'expiration_date': parser.get('SECRETS', 'client_psk_exp_date', fallback = '01/01/01')
             }
-    
+
     if config: 
         config_initialized.set()
         return config
+    
+def load_images():
+    def _generate_placeholder_img():
+        _placeholder = Image.new('RGBA', (38, 38), (200, 200, 200, 255))
+        _draw = ImageDraw.Draw(_placeholder)
+        _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
+        _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
+
+        return _placeholder
+    #Pre-load images to reduce object creation times.
+    
+    items = ['main_flag_a.png', 'main_flag_b.png', 'sec_flag_a.png', 'sec_flag_b.png']
+    for item in items:
+        try:
+            _path = os.path.join(IMG_DIR, item)
+            _img = Image.open(_path).resize((38, 38))
+        except:
+            _img = _generate_placeholder_img()
+
+        _img_obj = ImageTk.PhotoImage(_img)
+        _img_name = os.path.splitext(item)[0]
+        update_local_state('images', {_img_name: _img_obj})
 
 # Used to safely update program state - queues are updated directly
 def update_local_state(key, value, section=None, sub_section=None):
+    global local_state
     """
     Thread-safe way to live update program configuration and write
     changes to disk. Ensures that missing keys are initialized as needed.
     """
     with lock:
         if section is not None:
+            print('Section Detected: {section}')
             if key not in local_state:
+                print(f'Key Not Detect: {key}')
                 local_state[key] = {}
 
             if section not in local_state[key]:
+                print(f'Section Not Detected: {section}')
                 local_state[key][section] = {}
 
-            local_state[key][section][sub_section] = value
-
+            if sub_section is None:
+                print(f'Sub Section Not Provided: {sub_section}')
+                local_state[key][section] = value
+                print(local_state[key][section])
+            else:
+                print(f'Sub Section Provided: {sub_section}')
+                local_state[key][section][sub_section] = value
+                print(local_state[key][section][sub_section])
+            
             if key == 'config':
                 write_config_to_file()
 
@@ -1519,7 +1529,6 @@ def logic_thread():
         _check_queue()
 
 def tk_thread():
-
     global local_state
 
     root = tk.Tk()
@@ -1631,16 +1640,17 @@ def tk_thread():
         gradient_step = 0
         current_color = 0
         _animate_background()
-
+    update_local_state('images', load_images())
+    load_images()
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
     root.mainloop()
 
 def app_start():
-
     global local_state
 
     local_state = {
-        'config':get_config(),
+        'config':get_config(), # Also loads images / creates placeholder images. These are stored in local_state['images']
+        'images': {},
         'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
         'sec_obj_refs': {},
         'mc_panel_ref': None,
