@@ -323,7 +323,7 @@ class ContentPanel(tk.Frame):
             cell = self._find_next_cell(self.grid_tracker)
             if cell is not None:
                 row, column = cell
-                main_obj.grid(row=row, column=column)
+                self.after(10, main_obj.grid(row=row, column=column))
                 self.grid_tracker[row][column] = main_obj
 
     def _find_next_cell(self, grid_tracker):
@@ -1250,7 +1250,7 @@ def mqtt_thread():
 
     def _on_disconnect(client, userdata, rc, properties = None):
         if not local_state['manual_reconnect']:
-            local_state['auth_state'] = False
+            local_state['broker_verified'] = False
 #
 # UPDATE QUEUE PUSH
 #         
@@ -1379,7 +1379,7 @@ def mqtt_thread():
             
         def _set_auth(rec_payload):
             if rec_payload == 'hmac_ok':
-                local_state['auth_state'] = True
+                local_state['broker_verified'] = True
 
             else:
                 payload = f'{client_id},hmac_auth_req_final','no_response'
@@ -1647,7 +1647,7 @@ def app_start():
         'sec_panel_ref': None,
         'set_panel_ref': None,
         'active_panel_ref': None,
-        'auth_state': False,
+        'broker_verified': False,
         'manual_reconnect': False,
         'side_bg_color': '',
         'side_fg_color': '',
