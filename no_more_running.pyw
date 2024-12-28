@@ -1617,16 +1617,6 @@ def tk_thread():
 
     root.resizable(False, False)
 
-    pride_colors = [
-        (228, 3, 3),    # Red
-        (255, 140, 0),  # Orange
-        (255, 237, 0),  # Yellow
-        (0, 128, 38),   # Green
-        (0, 77, 255),   # Blue
-        (117, 7, 135)   # Violet
-    ]
-
-
     def _interpolate_color(color1, color2, factor):
         r1, g1, b1 = color1
         r2, g2, b2 = color2
@@ -1638,6 +1628,16 @@ def tk_thread():
     
     def _animate_background():
         global gradient_step, current_color
+
+        pride_colors = [
+        (228, 3, 3),    # Red
+        (255, 140, 0),  # Orange
+        (255, 237, 0),  # Yellow
+        (0, 128, 38),   # Green
+        (0, 77, 255),   # Blue
+        (117, 7, 135)   # Violet
+        ]
+
         factor = (gradient_step % 100) / 100
         next_color = _interpolate_color(pride_colors[current_color], pride_colors[(current_color + 1) % len(pride_colors)], factor)
         main_content_panel.configure(bg=next_color)
