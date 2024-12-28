@@ -1567,7 +1567,7 @@ def tk_thread():
     _root_fullscreen = local_state['config']['fullscreen']
     
     if platform.system() == "Linux":
-        _prefix = f'{local_state['icons']}_'
+        _prefix = (f'{local_state["icons"]}_')
         _icon_path = os.path.join(IMG_DIR, f'{_prefix}logo.png')
         _icon = PhotoImage(file = _icon_path)
         root.iconphoto(True, _icon)
