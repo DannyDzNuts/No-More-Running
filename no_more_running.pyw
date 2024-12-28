@@ -683,7 +683,7 @@ class SideBar(tk.Frame):
         sec_obj_name = local_state['config']['sec_object_name']
 
         # Load and resize an image using Pillow for the logo
-        _prefix = f'{local_state['icons']}_'
+        _prefix = f"{local_state['icons']}_"
         try:
             raw_img = Image.open(os.path.join(IMG_DIR, f'{_prefix}logo.png'))
             ready_img = raw_img.resize((int(min_width - 25), int(min_width - 30)))
