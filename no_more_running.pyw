@@ -397,8 +397,12 @@ class ContentObject(tk.Canvas):
 
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
+            self.enable_masking = local_state['config']['main_enable_masking']
+            self.enable_timer = local_state['config']['main_enable_timer']
         else:
             self.ref_dict = 'sec_obj_refs'
+            self.enable_masking = local_state['config']['sec_enable_masking']
+            self.enable_timer = local_state['config']['sec_enable_timer']
         
         if not subtitle_val is None:
             self.subtitle_enabled = True
@@ -407,8 +411,6 @@ class ContentObject(tk.Canvas):
             self.is_masked = False
         else:
             self.subtitle_enabled = False
-        
-        self.enable_masking = local_state['config']['enable_masking']
 
         if isinstance(self.enable_masking, str): # Python interprets bools weird, let's make sure we get the right value...
             self.enable_masking = self.enable_masking.lower() in ('true', '1', 'yes', 'y')
@@ -446,7 +448,10 @@ class ContentObject(tk.Canvas):
             self.lbl_subtitle.place(relx = 0.5, rely = 0.3, anchor = 'center')
             self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
-        if enable_timer:
+        if isinstance(self.enable_timer, str):
+            self.enable_timer = self.enable_timer.lower() in ('true', '1', 'yes', 'y')
+        
+        if self.enable_timer:
             self.creation_time = time.time()
             self.lbl_timer = tk.Label(self,
                                         text = '00:00:00',
@@ -1152,11 +1157,14 @@ def get_config():
             'main_flags_enabled': parser.getboolean('GUI', 'main_flags_enabled', fallback = False),
             'main_obj_flag_a_name': parser.get('GUI', 'main_obj_flag_a_name', fallback = 'Dessert'),
             'main_obj_flag_b_name': parser.get('GUI', 'main_obj_flag_b_name', fallback = 'Milkshake'),
+            'main_enable_masking': parser.getboolean('GUI', 'main_enable_masking', fallback = True),
+            'main_enable_timer': parser.getboolean('GUI', 'main_enable_timer', fallback = True),
             'sec_object_name': parser.get('GUI', 'sec_object_name', fallback = '86'),
             'sec_flag_a_name': parser.get('GUI', 'sec_flag_a_name', fallback = 'Limited'),
             'sec_flag_b_name': parser.get('GUI', 'sec_flag_b_name', fallback = 'O/S'),
             'sec_flags_enabled': parser.get('GUI', 'sec_flags_enabled', fallback = False),
-            'enable_masking': parser.get('GUI', 'enable_masking', fallback = True),
+            'sec_enable_masking': parser.getboolean('GUI', 'secondary_enable_masking', fallback = True),
+            'sec_enable_timer': parser.getboolean('GUI', 'secondary_enable_timer', fallback = True),
             'enable_debug': parser.get('GUI','debug', fallback = False),
             'broker_ip': parser.get('NETWORK', 'broker_ip', fallback = '192.168.1.1'),
             'broker_port': parser.get('NETWORK', 'broker_port', fallback = '1883'),
@@ -1642,16 +1650,15 @@ def tk_thread():
     def _time_tracker():
         for dictionary in [local_state['main_obj_refs'], local_state['sec_obj_refs']]:
             for _obj in dictionary.values():
-                if hasattr(_obj, 'creation_time'): 
-                    _creation_time = _obj.creation_time
-                    _elapsed_time = (time.time() - _creation_time)
-                    if not _elapsed_time >= 86400:
-                        _formatted_time = time.strftime('%H:%M:%S', time.gmtime(_elapsed_time))
-                        _obj.lbl_timer.configure(text = f'{_formatted_time}')
-                    else:
-                        _obj.lbl_timer.configure(text = '> 24 Hours')
-                else:
-                    pass
+                if _obj.winfo_ismapped(): # Only update currently displayed objects
+                    if hasattr(_obj, 'creation_time'): 
+                        _creation_time = _obj.creation_time
+                        _elapsed_time = (time.time() - _creation_time)
+                        if not _elapsed_time >= 86400:
+                            _formatted_time = time.strftime('%H:%M:%S', time.gmtime(_elapsed_time))
+                            _obj.lbl_timer.configure(text = f'{_formatted_time}')
+                        else:
+                            _obj.lbl_timer.configure(text = '> 24 Hours')
 
         root.after(1000, _time_tracker)
     
