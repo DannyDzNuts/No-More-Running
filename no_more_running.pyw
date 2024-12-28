@@ -1165,6 +1165,7 @@ def get_config():
             'sec_flags_enabled': parser.get('GUI', 'sec_flags_enabled', fallback = False),
             'sec_enable_masking': parser.getboolean('GUI', 'secondary_enable_masking', fallback = True),
             'sec_enable_timer': parser.getboolean('GUI', 'secondary_enable_timer', fallback = True),
+            'timer_update_delay': parser.get('GUI', 'timer_update_delay', fallback = '5'),
             'enable_debug': parser.get('GUI','debug', fallback = False),
             'broker_ip': parser.get('NETWORK', 'broker_ip', fallback = '192.168.1.1'),
             'broker_port': parser.get('NETWORK', 'broker_port', fallback = '1883'),
@@ -1648,6 +1649,8 @@ def tk_thread():
         main_content_panel.after(60, _animate_background)
 
     def _time_tracker():
+        _delay = int(local_state['config']['timer_update_delay'])
+        _delay = _delay * 1000
         for dictionary in [local_state['main_obj_refs'], local_state['sec_obj_refs']]:
             for _obj in dictionary.values():
                 if _obj.winfo_ismapped(): # Only update currently displayed objects
@@ -1660,7 +1663,7 @@ def tk_thread():
                         else:
                             _obj.lbl_timer.configure(text = '> 24 Hours')
 
-        root.after(1000, _time_tracker)
+        root.after(_delay, _time_tracker)
     
     timer_thread = threading.Thread(target = _time_tracker, daemon = True)
 
