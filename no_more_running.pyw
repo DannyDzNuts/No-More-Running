@@ -59,7 +59,6 @@ import random
 import tkinter as tk
 
 from math import radians, sin, cos
-from contextlib import redirect_stdout, redirect_stderr
 from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
 from datetime import datetime
@@ -365,6 +364,7 @@ class ContentObject(tk.Canvas):
 
         # Colors (bd = Border)
         self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
+        self.active_bg = local_state['accent_bg_color']
         self.fg_color = local_state['mc_fg_color']
         self.inactive_bd = self._brighten_color(self.inactive_bg, brighten_by = 10)
         self.active_bd = self._brighten_color(self.inactive_bd, 30)
@@ -388,13 +388,12 @@ class ContentObject(tk.Canvas):
         self.configure(height = self.height, 
                         width = self.width,
                         bd = 0, 
-                        highlightthickness = 0,
-                        bg = local_state['mc_bg_color']
+                        highlightthickness = 3,
+                        highlightbackground = self.inactive_bd,
+                        bg = self.inactive_bg
         )
 
-        self.pack_propagate(False)
         self.bind("<Button-1>", self._set_selected)
-        self._draw_object()
 
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
@@ -405,12 +404,18 @@ class ContentObject(tk.Canvas):
             self.subtitle_enabled = True
             self.unmasked_subtitle_val = subtitle_val
             self.masked_subtitle_val = ''
-            self.masking_enabled = local_state['config']['enable_masking']
             self.is_masked = False
         else:
             self.subtitle_enabled = False
         
-        if self.masking_enabled:
+        self.enable_masking = local_state['config']['enable_masking']
+
+        if isinstance(self.enable_masking, str): # Python interprets bools weird, let's make sure we get the right value...
+            self.enable_masking = self.enable_masking.lower() in ('true', '1', 'yes', 'y')
+        
+        self.enable_masking = bool(self.enable_masking)
+
+        if self.enable_masking:
             self.is_masked = True
             self.masked_subtitle_val = '*' * (len(self.unmasked_subtitle_val) - 4) + self.unmasked_subtitle_val[-4:]
             _init_subtitle_val = self.masked_subtitle_val
@@ -442,11 +447,9 @@ class ContentObject(tk.Canvas):
             self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
         if enable_timer:
-            self.time_elapsed = 0
-            self.time_thread = threading.Thread(target = self._update_elapsed_time, daemon = True)
-
+            self.creation_time = time.time()
             self.lbl_timer = tk.Label(self,
-                                        text = self._format_time(),
+                                        text = '00:00:00',
                                         font = ('Ariel', 20, 'bold'),
                                         bg = self.inactive_bg,
                                         fg = self.fg_color)
@@ -504,67 +507,6 @@ class ContentObject(tk.Canvas):
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.update_idletasks()
-        self.time_thread.start()
-    
-    def _draw_object(self, outline_color=None, fill=None, _border_thickness=2):
-        """Draw a rounded rectangle background with an outside border using polygons."""
-        self.delete("all")
-        radius = self.corner_radius
-
-        if outline_color is None:
-            outline_color = self.inactive_bd
-
-        if fill is None:
-            fill = self.inactive_bg
-
-        steps = 1
-
-        def generate_arc_points(x, y, radius, start_angle, end_angle, steps):
-
-            points = []
-            for step in range(steps + 1):
-                angle = radians(start_angle + step * (end_angle - start_angle) / steps)
-                points.append((x + radius * cos(angle), y + radius * sin(angle)))
-            return points
-
-        filled_points = []
-        # Top-left corner
-        filled_points += generate_arc_points(radius, radius, radius, 180, 270, steps)
-        # Top-right corner
-        filled_points += generate_arc_points(self.width - radius, radius, radius, 270, 360, steps)
-        # Bottom-right corner
-        filled_points += generate_arc_points(self.width - radius, self.height - radius, radius, 0, 90, steps)
-        # Bottom-left corner
-        filled_points += generate_arc_points(radius, self.height - radius, radius, 90, 180, steps)
-
-        # Draw the filled background
-        self.create_polygon(filled_points, fill=fill, outline="", smooth=True)
-
-        # Generate points for the border
-        border_points = []
-        # Top-left corner
-        border_points += generate_arc_points(radius, radius, radius - _border_thickness / 2, 180, 270, steps)
-        # Top-right corner
-        border_points += generate_arc_points(self.width - radius, radius, radius - _border_thickness / 2, 270, 360, steps)
-        # Bottom-right corner
-        border_points += generate_arc_points(self.width - radius, self.height - radius, radius - _border_thickness / 2, 0, 90, steps)
-        # Bottom-left corner
-        border_points += generate_arc_points(radius, self.height - radius, radius - _border_thickness / 2, 90, 180, steps)
-
-        # Border
-        self.create_polygon(border_points, fill="", outline=outline_color, width=_border_thickness, smooth=True)
-
-
-    def _format_time(self):
-        hours, remainder = divmod(self.time_elapsed, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        return f'Age: {hours:02}:{minutes:02}:{seconds:02}'
-    
-    def _update_elapsed_time(self):
-        self.time_elapsed += 1
-        self.lbl_timer.config(text = self._format_time())
-        self.after(1000, self._update_elapsed_time)
     
     def _brighten_color(self, hex_color, brighten_by=10):
         hex_color = hex_color.lstrip("#")
@@ -598,14 +540,12 @@ class ContentObject(tk.Canvas):
             _active_obj_id = str(local_state.get('active_obj_id'))
             _active_obj = local_state[self.ref_dict][_active_obj_id]
             _active_obj.deselect()
-            update_local_state('is_object_active', False)
-            update_local_state('active_obj_id', '')
         
-        _other_object_active = local_state['is_object_active']
+        _other_object_active = local_state['is_object_active'] # Double checking to ensure something else wasn't selected before we reached this line
 
         if not self.is_selected and not _other_object_active:
-            self._draw_object(outline_color = self.active_bd, fill = self.accent_bg_color)
-            # self.configure(bg = local_state['mc_bg'])
+            self.configure(highlightbackground = self.active_bd, bg = self.active_bg)
+
             if hasattr(self, 'lbl_flag_a'):
                 self.cont_flag_a.configure(bg = self.accent_bg_color)
                 self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
@@ -618,7 +558,7 @@ class ContentObject(tk.Canvas):
             if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
             if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
 
-            if self.masking_enabled:
+            if self.enable_masking:
                 self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
 
             self.is_selected = True
@@ -629,9 +569,8 @@ class ContentObject(tk.Canvas):
             self.deselect()
 
     def deselect(self):
-        self.configure(bg = local_state['mc_bg_color'])
+        self.configure(bg = self.inactive_bg, highlightbackground = self.inactive_bd)
         self.lbl_title.configure(bg = self.inactive_bg)
-        self._draw_object()
 
         if hasattr(self, 'cont_flag_a'):
             self.cont_flag_a.configure(bg = self.inactive_bg)
@@ -653,78 +592,13 @@ class ContentObject(tk.Canvas):
             self.lbl_timer.configure(fg = self.fg_color)
             self.lbl_timer.configure(bg = self.inactive_bg)
 
-        if self.masking_enabled:
+        if self.enable_masking is True:
             self.lbl_subtitle.configure(text = self.masked_subtitle_val)
 
         self.is_selected = False
 
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
-
-    def page(self, requestor="Debug"):
-        # Get the root window from the parent
-        root = self.winfo_toplevel()
-
-        # Create a semi-transparent full-screen overlay
-        overlay = tk.Frame(root, bg = self.inactive_bg)
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        overlay.tkraise()  # Ensure the overlay is above all other widgets
-
-        # Add object details
-        obj_name = self.lbl_title.cget("text")
-        obj_reference_name = local_state["config"]["main_object_name"]
-
-        # Add a label to display the message
-        message_label = tk.Label(
-            overlay,
-            text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
-            font=("Arial", 48),
-            bg = self.inactive_bg,
-            fg = self.fg_color,
-        )
-        
-        message_label.place(relx=0.5, rely=0.4, anchor="center")
-
-        # Event for sound playback control
-        sound_event = threading.Event()
-
-        # Dismiss button functionality
-        def dismiss():
-            sound_event.set()
-            overlay.destroy()
-
-        # Add a dismiss button
-        dismiss_button = tk.Button(
-            overlay,
-            text="Dismiss",
-            bg="#333333",
-            fg="#FFFFFF",
-            font=("Arial", 36),
-            command=dismiss,
-        )
-
-        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
-
-        # Function to play notification sound
-        def play_sound():
-            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
-            if os.path.exists(sound_path):
-                iteration = 0
-                while not sound_event.is_set():
-                    if iteration >= 3:  # Play sound up to 3 times
-                        break
-                    try:
-                        sound = pygame.mixer.Sound(sound_path)
-                        sound.play()
-                        time.sleep(sound.get_length())
-                        time.sleep(10)  # Delay between plays
-                    except Exception as e:
-                        break
-                    iteration += 1
-
-        # Start the sound thread
-        sound_thread = threading.Thread(target=play_sound, daemon=True)
-        sound_thread.start()
 
 class SettingsContent(tk.Frame):
     def __init__(self, parent, mode):
@@ -828,12 +702,11 @@ class SideBar(tk.Frame):
             f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_panel),
             'create': self._create_sidebar_button('Create', 'create.png', command=self._create_object),
             'modify': self._create_sidebar_button('Modify', 'edit.png', command=self._edit_object),
-            'page': self._create_sidebar_button('Page', 'page.png', command=self._page_object),
+            'page': self._create_sidebar_button('Page', 'page.png', command=self._debug_page_object),
             'remove': self._create_sidebar_button('Remove', 'delete.png', command=self._delete_object),
             'exit': self._create_sidebar_button('Exit', 'exit.png', command=self._exit_program),
             'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._show_set_panel),
             'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._trigger_gen_mainobj),
-            'page_active': self._create_sidebar_button('Page Active', 'page.png', command = self.main_content_panel._page_active)
         }
 
         # Pack the logo and spacer
@@ -977,8 +850,80 @@ class SideBar(tk.Frame):
     def _edit_object(self):
         pass
 
-    def _page_object(self):
-        pass
+    def _debug_page_object(self):
+        # Get the root window from the parent
+        root = self.winfo_toplevel()
+        _requestor = 'Debug'
+        _active_obj_id = local_state['active_obj_id']
+        _active_obj_id = str(_active_obj_id)
+
+        if _active_obj_id in local_state['main_obj_refs']:
+            _obj = local_state['main_obj_refs'][_active_obj_id]
+        elif _active_obj_id in local_state['sec_obj_refs']:
+            _obj = local_state['sec_obj_refs'][_active_obj_id]
+        else:
+            return   
+
+        # Create a semi-transparent full-screen overlay
+        overlay = tk.Frame(root, bg = _obj.inactive_bg)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.tkraise()  # Ensure the overlay is above all other widgets
+
+        # Add object details
+        obj_name = _obj.lbl_title.cget("text")
+        obj_reference_name = local_state["config"]["main_object_name"]
+
+        # Add a label to display the message
+        message_label = tk.Label(
+            overlay,
+            text=f"Page received from {_requestor}\n\n{obj_reference_name}: {obj_name}",
+            font=("Arial", 48),
+            bg = _obj.inactive_bg,
+            fg = _obj.fg_color,
+        )
+        
+        message_label.place(relx=0.5, rely=0.4, anchor="center")
+
+        # Event for sound playback control
+        sound_event = threading.Event()
+
+        # Dismiss button functionality
+        def dismiss():
+            sound_event.set()
+            overlay.destroy()
+
+        # Add a dismiss button
+        dismiss_button = tk.Button(
+            overlay,
+            text="Dismiss",
+            bg="#333333",
+            fg="#FFFFFF",
+            font=("Arial", 36),
+            command=dismiss,
+        )
+
+        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
+
+        # Function to play notification sound
+        def play_sound():
+            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
+            if os.path.exists(sound_path):
+                iteration = 0
+                while not sound_event.is_set():
+                    if iteration >= 3:  # Play sound up to 3 times
+                        break
+                    try:
+                        sound = pygame.mixer.Sound(sound_path)
+                        sound.play()
+                        time.sleep(sound.get_length())
+                        time.sleep(10)  # Delay between plays
+                    except Exception as e:
+                        break
+                    iteration += 1
+
+        # Start the sound thread
+        sound_thread = threading.Thread(target=play_sound, daemon=True)
+        sound_thread.start()
 
     def _delete_object(self):
         pass
@@ -1586,6 +1531,7 @@ def logic_thread():
 def tk_thread():
     global local_state
     global ui_ready_event
+    global timer_thread
     
     ui_ready_event = threading.Event() # Signals to the rest of the program that they can it with the UI
 
@@ -1693,15 +1639,36 @@ def tk_thread():
         
         main_content_panel.after(60, _animate_background)
 
+    def _time_tracker():
+        for dictionary in [local_state['main_obj_refs'], local_state['sec_obj_refs']]:
+            for _obj in dictionary.values():
+                if hasattr(_obj, 'creation_time'): 
+                    _creation_time = _obj.creation_time
+                    _elapsed_time = (time.time() - _creation_time)
+                    if not _elapsed_time >= 86400:
+                        _formatted_time = time.strftime('%H:%M:%S', time.gmtime(_elapsed_time))
+                        _obj.lbl_timer.configure(text = f'{_formatted_time}')
+                    else:
+                        _obj.lbl_timer.configure(text = '> 24 Hours')
+                else:
+                    pass
+
+        root.after(1000, _time_tracker)
+    
+    timer_thread = threading.Thread(target = _time_tracker, daemon = True)
+
     if local_state['config']['theme'] == 'pride':
         global gradient_step, current_color
         gradient_step = 0
         current_color = 0
         _animate_background()
-    update_local_state('images', load_images())
+
     load_images()
+
+    timer_thread.start()
+    
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
-    root.after(5000, ui_ready_event.set())
+    root.after(500, ui_ready_event.set()) # Ensures the UI is fully displayed and ready before allowing other threads to send requests to the tk thread.
     root.mainloop()
 
 def app_start():
@@ -1844,6 +1811,11 @@ def app_start():
         logic_thread_obj.start()
 
     tk_thread()
+
+    mqtt_thread_obj.join()
+    logic_thread_obj.join()
+    timer_thread.join()
+    exit(0)
 
 if __name__ == '__main__':
     app_start()
