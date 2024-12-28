@@ -130,11 +130,13 @@ class ContentPanel(tk.Frame):
                                       bg = local_state['side_bg_color'],
                                       highlightthickness = 0)
         
+        _prefix = (f"{local_state['icons']}_")
+
         try:
-            _img_left_arrow_path = os.path.join(IMG_DIR, 'arrow_left.png')
-            _img_right_arrow_path = os.path.join(IMG_DIR, 'arrow_right.png')
-            _img_first_page_path = os.path.join(IMG_DIR, 'first_page.png')
-            _img_last_page_path = os.path.join(IMG_DIR, 'last_page.png')
+            _img_left_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_left.png')
+            _img_right_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_right.png')
+            _img_first_page_path = os.path.join(IMG_DIR, f'{_prefix}first_page.png')
+            _img_last_page_path = os.path.join(IMG_DIR, f'{_prefix}last_page.png')
             _img_left_arrow = Image.open(_img_left_arrow_path).resize((56, 56))
             _img_right_arrow = Image.open(_img_right_arrow_path).resize((56, 56))
             _img_first_page = Image.open(_img_first_page_path).resize((38, 38))
@@ -424,8 +426,10 @@ class ContentObject(tk.Canvas):
         else:
             _init_subtitle_val = self.unmasked_subtitle_val
 
-        self.img_flag_a = local_state['images']['main_flag_a']
-        self.img_flag_b = local_state['images']['main_flag_b']
+        _prefix = local_state['icons']
+
+        self.img_flag_a = local_state['images'][f'{_prefix}_main_flag_a']
+        self.img_flag_b = local_state['images'][f'{_prefix}_main_flag_b']
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
@@ -679,8 +683,9 @@ class SideBar(tk.Frame):
         sec_obj_name = local_state['config']['sec_object_name']
 
         # Load and resize an image using Pillow for the logo
+        _prefix = f'{local_state['icons']}_'
         try:
-            raw_img = Image.open(os.path.join(IMG_DIR, 'logo.png'))
+            raw_img = Image.open(os.path.join(IMG_DIR, f'{_prefix}logo.png'))
             ready_img = raw_img.resize((int(min_width - 25), int(min_width - 30)))
             self.image = ImageTk.PhotoImage(ready_img)
         except FileNotFoundError:
@@ -700,18 +705,20 @@ class SideBar(tk.Frame):
         # Create a spacer frame
         self.spacer = tk.Frame(self, width = 50, height = 1, bg = self.bg_color)
 
+        _prefix = f"{local_state['icons']}_"
+
         # Create buttons (with icons and labels for extended mode)
         self.buttons = {
-            'minimize': self._create_sidebar_button('Minimize', 'menu.png', command=self._toggle),
-            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', 'show_main_objs.png', command = self._show_main_panel),
-            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_panel),
-            'create': self._create_sidebar_button('Create', 'create.png', command=self._create_object),
-            'modify': self._create_sidebar_button('Modify', 'edit.png', command=self._edit_object),
-            'page': self._create_sidebar_button('Page', 'page.png', command=self._debug_page_object),
-            'remove': self._create_sidebar_button('Remove', 'delete.png', command=self._delete_object),
-            'exit': self._create_sidebar_button('Exit', 'exit.png', command=self._exit_program),
-            'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._show_set_panel),
-            'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._trigger_gen_mainobj),
+            'minimize': self._create_sidebar_button('Minimize', f'{_prefix}menu.png', command=self._toggle),
+            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', f'{_prefix}show_main_objs.png', command = self._show_main_panel),
+            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', f'{_prefix}show_sec_objs.png', command=self._show_sec_panel),
+            'create': self._create_sidebar_button('Create', f'{_prefix}create.png', command=self._create_object),
+            'modify': self._create_sidebar_button('Modify', f'{_prefix}edit.png', command=self._edit_object),
+            'page': self._create_sidebar_button('Page', f'{_prefix}page.png', command=self._debug_page_object),
+            'remove': self._create_sidebar_button('Remove', f'{_prefix}delete.png', command=self._delete_object),
+            'exit': self._create_sidebar_button('Exit', f'{_prefix}exit.png', command=self._exit_program),
+            'settings': self._create_sidebar_button('Settings', f'{_prefix}settings.png', command=self._show_set_panel),
+            'generate_objects': self._create_sidebar_button('Generate Objs', f'{_prefix}generate.png', command=self.main_content_panel._trigger_gen_mainobj),
         }
 
         # Pack the logo and spacer
@@ -1194,8 +1201,11 @@ def load_images():
 
         return _placeholder
     
-    items = ['main_flag_a.png', 'main_flag_b.png', 'sec_flag_a.png', 'sec_flag_b.png']
-    for item in items:
+    _imgs = os.listdir(IMG_DIR)
+    _img_list = [item for item in _imgs]
+    _img_list.remove('logo.ico')
+
+    for item in _img_list:
         try:
             _path = os.path.join(IMG_DIR, item)
             _img = Image.open(_path).resize((38, 38))
@@ -1701,6 +1711,7 @@ def app_start():
         'mc_fg_color': '',
         'accent_bg_color': '',
         'accent_fg_color': '',
+        'icons': '',
         'screen_width': None,
         'screen_height': None,
         'is_object_active': False,
@@ -1713,14 +1724,23 @@ def app_start():
     }
     
     themes = {
+        'user_defined':{
+            'mc_bg_color': '',
+            'mc_fg_color': '',
+            'side_bg_color': '',
+            'side_fg_color': '',
+            'accent_fg_color': '',
+            'accent_bg_color': '',
+            'icons': ''
+        },
         'light': {
             'mc_bg_color': '#E5D9F2',
             'mc_fg_color': '#000000',
             'side_bg_color': '#A594F9',
             'side_fg_color': '#000000',
-            'accent_color': '#A594F9',
             'accent_fg_color': '#000000',
-            'accent_bg_color': '#A594F9'
+            'accent_bg_color': '#A594F9',
+            'icons': 'dark'
         },
 
         'light_blue': {
@@ -1728,9 +1748,9 @@ def app_start():
             'mc_fg_color': '#000000', 
             'side_bg_color': '#B3C8CF',
             'side_fg_color': '#000000',
-            'accent_color': '#B3C8CF',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#000000',
+            'accent_bg_color': '#FFFFFF',
+            'icons': 'dark'
         },
 
         'light_green': {
@@ -1738,9 +1758,9 @@ def app_start():
             'mc_fg_color': '#000000',
             'side_bg_color': '#9EDF9C',
             'side_fg_color': '#000000',
-            'accent_color': '#9EDF9C',
             'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_bg_color': '',
+            'icons': 'dark'
         },
 
         'dark': {
@@ -1748,38 +1768,39 @@ def app_start():
             'mc_fg_color': '#0F0F0F',
             'side_bg_color': '#3C3C3C',
             'side_fg_color': '#F0F0F0',
-            'accent_color': '#4F4F4F',
             'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#F0F0F0'
+            'accent_bg_color': '#C0C0C0',
+            'icons': 'dark'
         },
 
-        'high_contrast_cyan': {
+        'dark_blue': {
             'mc_bg_color': '#000000',
             'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#00BBBB',
+            'side_bg_color': '#0000BB',
             'side_fg_color': '#000000',
-            'accent_color': '#00BBBB',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#0F0F0F',
+            'accent_bg_color': '#0000BB',
+            'icons': 'dark'
         },
 
-        'high_contrast_red': {
+        'dark_red': {
             'mc_bg_color': '#000000',
             'mc_fg_color': '#F0F0F0',
             'side_bg_color': '#BB0000',
             'side_fg_color': '#FFFFFF',
-            'accent_color': '#BB0000',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#0F0F0F',
+            'accent_bg_color': '#BB0000',
+            'icons': 'dark'
         },
 
-        'high_contrast_purple': {
+        'dark_purple': {
             'mc_bg_color': '#000000',
             'mc_fg_color': '#F0F0F0',
             'side_bg_color': '#8D00FF',
             'side_fg_color': '#000000',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
+            'accent_fg_color': '#0F0F0F',
+            'accent_bg_color': '#C0C0C0',
+            'icons': 'dark'
         },
 
         'super_dark': {
@@ -1788,7 +1809,18 @@ def app_start():
             'side_bg_color': '#3F3F3F',
             'side_fg_color': '#FFFFFF',
             'accent_fg_color': '#FFFFFF',
-            'accent_bg_color': '#3F3F3F'
+            'accent_bg_color': '#3F3F3F',
+            'icons': 'dark'
+        },
+
+        'h4x0r': {
+            'mc_bg_color': '#BB0000',
+            'mc_fg_color': '#000000',
+            'side_bg_color': '#000000',
+            'side_fg_color': '#BB0000',
+            'accent_bg_color': '#000000',
+            'accent_fg_color': '#BB0000',
+            'icons': 'red'
         },
 
         'pride': {
@@ -1797,7 +1829,8 @@ def app_start():
             'side_bg_color': '#F0F0F0',
             'side_fg_color': '#000000',
             'accent_fg_color': '#F0F0F0',
-            'accent_bg_color': '#0F0F0F'
+            'accent_bg_color': '#0F0F0F',
+            'icons': 'dark'
         }
     }
 
