@@ -1333,6 +1333,7 @@ def mqtt_thread():
     client.on_disconnect = _on_disconnect
     client.on_message = _on_message
     
+    client.connect(broker_ip, broker_port)
     client.loop_forever()
     
 def logic_thread():
@@ -1841,11 +1842,11 @@ def app_start():
         mqtt_thread_obj.start()
         logic_thread_obj.start()
 
-    #tk_thread()
+    tk_thread()
 
-    #mqtt_thread_obj.join()
-    #logic_thread_obj.join()
-    #timer_thread.join()
+    mqtt_thread_obj.join()
+    logic_thread_obj.join()
+    timer_thread.join()
 
     time.sleep(300)
 
