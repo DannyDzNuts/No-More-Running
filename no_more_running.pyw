@@ -987,8 +987,8 @@ class StatusPanel(tk.Frame):
         _frm_spacer.grid(row = 0, column = 2)
         self.lbl_client_info.grid(row = 0, column = 3, sticky = 'ne')
 
-def get_timestamp(include_month = False):
-    if include_month:
+def get_timestamp(include_date = False):
+    if include_date:
         return time.strftime('%m/%d/%y @ %H:%M:%S')
     else:
         return time.strftime('%H:%M:%S')
@@ -1023,8 +1023,9 @@ def get_error_message(err, catagory = 'general'):
     return None
 
 def report_error(error, function, catagory = 'general', err_level = 'warn', interrupt_user = False, write_to_disk = False, stop_program = False, custom_message = ''):
-    _admin_message = (f'[{get_timestamp}]    Level: {err_level}    Function: {function}    Error: {error}')
-    
+    _admin_message = (f'[{get_timestamp(include_date = True)}]    Level: {err_level}    Function: {function}    Error: {error}\n')
+    write_failure = False
+
     def show_interrupt(): # Sends request to tk thread to notify user of issue
         ui_ready_event.wait()
         local_state['req_to_tk_thread'].put(('interrupt_user', _user_message, stop_program))
@@ -1231,23 +1232,16 @@ def update_local_state(key, value, section=None, sub_section=None):
 
     with lock:
         if section is not None:
-            print('Section Detected: {section}')
             if key not in local_state:
-                print(f'Key Not Detect: {key}')
                 local_state[key] = {}
 
             if section not in local_state[key]:
-                print(f'Section Not Detected: {section}')
                 local_state[key][section] = {}
 
             if sub_section is None:
-                print(f'Sub Section Not Provided: {sub_section}')
                 local_state[key][section] = value
-                print(local_state[key][section])
             else:
-                print(f'Sub Section Provided: {sub_section}')
                 local_state[key][section][sub_section] = value
-                print(local_state[key][section][sub_section])
             
             if key == 'config':
                 write_config_to_file()
@@ -1273,45 +1267,37 @@ def mqtt_thread():
     # Once the broker is authenticated, the client unsubscribes from the authentication topic and subscribes to the main topic.
 
     # Each communication has a 30-second timeout for both sides.
-    global local_state
-    verification_event = threading.Event()
-    client = mqtt.Client(local_state['config']['client_id'])
+    global local_state, verification_event, client
 
-    def _on_disconnect(client, userdata, rc, properties = None):
-        if not local_state['manual_reconnect']:
-            local_state['broker_verified'] = False
-#
-# UPDATE QUEUE PUSH
-#         
-        local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
-    
-    def _on_connect(client, userdata, flags, rc, properties = None):
-        if not local_state['manual_reconnect']: # Only for debug. Unsafe to use otherwise.
-            _verify_broker()
-    
+    verification_event = threading.Event()
+    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
+    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
+    broker_ip = local_state['config']['broker_ip']
+
+    try:
+        broker_port = int(local_state['config']['broker_port'])
+    except Exception as e:
+        report_error(e, 'mqtt_thread', 'mqtt', 'warn', True, True, False, 'broker_port in settings.ini misconfigured as {local_state["config"]["broker_port"]}.')
+
     def _on_message(client, userdata, msg, properties = None):
         message = msg.payload.decode()
+        print('    Msg Rec')
 
         if is_verifying_broker:
             # Expected format: client_id,response_type,payload
-            _client_id, _response_type, rec_payload = message.split(',')
+            try:
+                _client_id, _response_type, rec_payload = message.split(',')
+                print(_client_id, _response_type, rec_payload)
 
-            if _client_id == local_state['config']['client']['client_id']:
-                verification_event.set()
-                
-                _functions = {
-                    'hmac_auth_req_ok': _verify_broker._generate_nonce,
-                    'psk_refr_req_ok': _verify_broker._generate_nonce,
-                    'hmac_auth_nonce_echo': _verify_broker._request_hmac,
-                    'psk_refr_nonce_echo': _verify_broker._generate_psk,
-                    'hmac_auth_hmac_resp': _verify_broker._compare_hmac,
-                    'hmac_auth_echo': _verify_broker._set_auth,
-                    'psk_refr_echo': _verify_broker._verify_new_psk
-                }
-                
-                _action = _functions.get(_response_type)
-                if _action:
-                    _action(rec_payload)
+                if _client_id == local_state['config']['client']['client_id']:
+                    local_state['mqtt_messages'].put((_response_type, rec_payload))
+                    verification_event.set()
+
+            except Exception as e:
+                print(e)
+                report_error(e, '_on_message', 'mqtt', 'warn', False, True, False)
+
+                return
 
         else:
             # Expected format: sender_id,audience_id,request_type,object_id,object_title,object_subtitle,object_flag_a,object_flag_b
@@ -1332,63 +1318,102 @@ def mqtt_thread():
 
                 local_state['to_logic_thread'].put(_processed_payload)
 
+    def _on_disconnect(client, userdata, rc, properties = None):
+        if not local_state['manual_reconnect']:
+            local_state['broker_verified'] = False
+#
+# UPDATE QUEUE PUSH
+#         
+        local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
+    
+    def _on_connect(client, userdata, flags, rc, properties = None):
+        pass
+    
+    client.on_connect = _on_connect
+    client.on_disconnect = _on_disconnect
+    client.on_message = _on_message
+    
+    client.loop_forever()
+    
+def logic_thread():
+    global local_state, client
+    
+    broker_ip = local_state['config']['broker_ip']
+    broker_port = local_state['config']['broker_port']
+    broker_qos = local_state['config']['broker_qos']
+
     def _publish(topic, payload):
-        _qos = local_state['config']['NETWORK']['broker_qos']
+        _qos = int(local_state['config']['broker_qos'])
         client.publish(topic, payload, _qos)
 
-    def _verify_broker():
+    def verify_broker():
         ''' Handles broker-to-client authentication '''
-        # Every step has a 30 second timeout. If a message is not received the connection is terminated.
-        global is_verifying_broker
-        _nonce = None
+        global is_verifying_broker, mode
 
-        is_verifying_broker = True
+        _nonce = None
+        is_verifying_broker = True # Ensures that only the authentication channel is subscribed to until broker auth is completed
+        mode = None # Tracks whether we're authing the broker or refreshing psk
 
         topic = 'authentication'
         client.subscribe(topic)
-
-        psk_exp_obj = datetime.strptime(local_state['config']['SECRETS']['expiration_date'], '%m/%d/%y')
-        today = datetime.today()
-
-        # Determines the type of request to send - If PSK is expired, requests a refresh using backup PSK
-        if psk_exp_obj >= today.date():
-            request_type = f'hmac_auth_req'
-        elif psk_exp_obj < today.date():
-            request_type = f'hmac_refr_req'
         
-        client_id = local_state['config']['CLIENT']['client_id']
-
-        payload = f'{request_type},{client_id}'
-        _publish(topic, payload)
-
-        verification_event.wait(timeout = 30)
-        if not verification_event.is_set(): _abort_auth('_verify_broker', 'timeout')
-
+        client_id = local_state['config']['client_id']
+        
         def _abort_auth(function, reason):
-            local_state['to_logic_thread'].put((f'report_error,False,True,broker auth failed: {function}: {reason}, Failed to authenticate broker. Please verify network settings and try again.'))
+            print('Aborting Authorization')
+
+            keys = local_state.keys()
+            items = ['psk_cipher_text', 'new_psk']
+
+            for item in items:
+                if item in keys:
+                    with lock:
+                        del local_state[item]
+
+            report_error(f'{reason}', f'{function}', 'mqtt', 'warn', True, True, False, f'{reason}')
             client.disconnect()
+
+        def _await_response():
+            global verification_event
+
+            verification_event.clear()
+            verification_event.wait(timeout = 30)
+
+            if not verification_event.is_set(): _abort_auth('_verify_broker', 'timeout')
+
+        def _initial_request():
+            ''' Requests Broker Authentication or PSK Refresh if PSK is expired '''
+
+            psk_exp_obj = datetime.strptime(local_state['config']['expiration_date'], '%m/%d/%y').date()
+            today = datetime.today()
+
+            # Determines the type of request to send - If PSK is expired, requests a refresh using backup PSK
+            if psk_exp_obj >= today.date():
+                request_type = f'hmac_auth_req' # Normal Auth Request
+                mode = 'auth'
+            elif psk_exp_obj < today.date():
+                request_type = f'hmac_refr_req' # Refresh Request
+                mode = 'refr'
+            
+            payload = f'{request_type},{client_id}'
+            _publish(topic, payload)
+            _await_response()
             
         def _generate_nonce(rec_payload):
             _nonce = secrets.token_hex(length = 32)
-            payload = f'{client_id},gen_nonce,{_nonce}'
-            verification_event.clear()
-            # Confirming received nonce with broker
-            _publish(topic, payload)
 
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): _abort_auth('_generate_nonce', 'timeout')
+            payload = f'{client_id},gen_nonce,{_nonce}'
+            _publish(topic, payload)
+            _await_response()
 
         def _request_hmac(rec_payload):
             payload = f'{client_id},hmac_auth_req_hmac,none'
-
-            verification_event.clear()
             _publish(topic, payload)
 
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): _abort_auth('_request_hmac', 'timeout')
+            _await_response()
         
         def _compare_hmac(rec_payload):
-            _encoded_psk = local_state['config']['SECRETS']['preshared_key'].encode()
+            _encoded_psk = local_state['config']['preshared_key'].encode()
             _expected_hmac = hmac.new(_encoded_psk, _nonce, hashlib.sha256).hexdigest()
             del _nonce
             del _encoded_psk
@@ -1423,7 +1448,7 @@ def mqtt_thread():
                 _new_psk = _new_psk.encode('utf-8')
 
             if len(_old_psk) == 32 and len(_new_psk) == 32:
-                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend=default_backend())
+                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend = default_backend())
                 _encryptor = _cipher.encryptor()
 
                 _padder = padding.PKCS7(algorithms.AES.block_size).padder()
@@ -1434,118 +1459,81 @@ def mqtt_thread():
                 return _encrypted_psk
 
             else:
-                local_state['to_logic_thread'].put('report_error,crit,True,True,_encrypt_psk: None,Unable to encrypt new PSK for transmission. Please ensure PSK is of valid 32 character hexidecimal format.')
-                
+                report_error('programming', '_encrypt_psk', 'mqtt', 'crit', True, True, True, f'Programming Error. Unable to encrypt new PSK.\nFor your safety, the program has been stopped. Please notify your administrator.\n\nAdditional details logged in {LOG_FILE}')
                 return None
 
         def _generate_psk(rec_payload):
             update_local_state('new_psk', secrets.token_hex(32))
-            update_local_state('psk_cipher_text', 
-                                _encrypt_psk(local_state['config']['SECRETS']['psk'], 
-                                local_state('psk_cipher_text')
-                                ))
+            update_local_state('psk_cipher_text', _encrypt_psk(local_state['config']['psk']))
 
             payload = f'{client_id},psk_refr_new_psk,{local_state["psk_cipher_text"]}'
             _publish(topic, payload)
-
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): 
-                with lock:
-                    del local_state['new_psk'], local_state['psk_cipher_text']
-                _abort_auth('_generate_psk', 'timeout')
+            
+            _await_response()
 
         def _verify_new_psk(rec_payload):
             if rec_payload == local_state['psk_cipher_text']:
                 _payload = f'{client_id},psk_refr_ok,none'
-
-                verification_event.clear()
                 _publish(topic, _payload)
 
-                verification_event.wait(timeout = 30)
-                if not verification_event.is_set(): _abort_auth('_verify_new_psk', 'timeout')
+                _await_response()
         
         def _finalize_new_psk(rec_payload):
-            update_local_state('config', local_state['new_psk'],'SECRETS', 'preshared_key')
-            with lock:
-                del local_state['psk_cipher_text'], local_state['new_psk']
-
+            update_local_state('config', local_state['new_psk'], section = 'psk') # Replacing PSK in local_state with the new psk // config changes are automatically written to file
+            
             _new_expiration_date = datetime.today() + relativedelta(months=3)
             _new_expiration_date_str = _new_expiration_date.strftime('%m/%d/%y')
-            update_local_state('config', _new_expiration_date_str, 'SECRETS', 'expiration_date')
-            
-            write_config_to_file()
 
+            update_local_state('config', _new_expiration_date_str, 'expiration_date')
+
+            with lock:
+                del local_state['psk_cipher_text'], local_state['new_psk'] # Not relying on auto-garbage collection to remove sensitive stuff from memory
+
+            # Restart authentication process using new PSK
             client.disconnect()
             client.reconnect()
 
-    client.on_connect = _on_connect
-    client.on_disconnect = _on_disconnect
-    client.on_message = _on_message
+        def _retrieve_auth_message():
+            return local_state['auth_messages'].get()
 
-def logic_thread():
-    global local_state
+        print('Init')
+        _initial_request()
+        print('    +')
 
-    def _notify_user(_title, _message, _timeout=10_000): # 1,000ms = 1s
-        # Displays a non-blocking, default-ok messagebox
-        """ def create_messagebox():
-            msg_box = Toplevel(root)
-            msg_box.title(_title)
+        if mode == 'refr':
+            if (message := _retrieve_auth_message())[0] == 'hmac_refr_ok':
+                print('Nonce')
+                _generate_nonce()
+                print('    +')
 
-            _label = Label(msg_box, text=_message, padx=20, pady=10)
-            _ok_button = Button(msg_box, text="OK", command=msg_box.destroy)
+            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
+                _generate_psk(message[1])
 
-            _label.pack()
-            _ok_button.pack(pady=5)
-
-            # Set a timer to automatically invoke the OK button after `_timeout` ms
-            msg_box.after(_timeout, _ok_button.invoke)
-
-        root.after(0, create_messagebox) """
-
-    def _report_error(_level, _stop, _alert_user, _admin_desc, _user_desc):
-        ''' Logs and optionally exits the program and / or reports errors to the user '''
-
-        _ts = get_timestamp(True)
-
-        try:
-            with open(LOG_FILE, 'a') as file:
-                file.write(f'{_ts}   {_admin_desc}')
-        
-        except Exception as _e:
-            messagebox.showerror(f'Error', 'An error has occured while attempting to log an error.\nThis may be a result of several issues.\nError: {_e}')
-
-        if not _stop:
-            _exit_message = 'The program will continue to run but user is advised to report this issue.'
-        else:
-            _exit_message = 'The program cannot continue to run and the user is advised to report this issue.'
-
-        if _alert_user:
-            _notify_user(f'Type: {_level}', f'{_user_desc}\n{_exit_message}', None)
-
-    def _create_object(rec_payload = None):
-        return
-    
-    def _edit_object(rec_payload = None):
-        return
-
-    def _check_queue():
-        _actions = {
-            'create_object': _create_object,
-            'edit_object': _edit_object,
-        }
-
-        while not local_state['to_logic_thread'].empty():
-            try:
-                rec_payload = local_state['to_logic_thread'].get()
-                _action = _actions.get(rec_payload[2])
-                _action(rec_payload)
+            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
+                _verify_new_psk(message[1])
             
-            except Exception as e:
-                get_error_message(e, 'to_logic_thread_queue')
-        
-        threading.Timer(1.0, _check_queue).start()
+            if (message := _retrieve_auth_message())[0] == 'psk_verified':
+                _finalize_new_psk(message[1])
 
-        _check_queue()
+        elif mode == 'req':
+            if (message := _retrieve_auth_message())[0] == 'hmac_req_ok':
+                _generate_nonce()
+
+            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
+                _request_hmac()
+            
+            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
+                _compare_hmac(message[1])
+
+    authentication_thread = threading.Thread(target = verify_broker())
+
+    # Begin Authenticating The Broker
+    try:
+        client.connect(broker_ip, broker_port)
+        authentication_thread.start()
+        client.loop()
+    except Exception as e:
+        print(f'Connection Failed: {e}')
 
 def tk_thread():
     global local_state
@@ -1717,6 +1705,7 @@ def app_start():
         'screen_height': None,
         'is_object_active': False,
         'active_obj_id': None,
+        'auth_messages': Queue(),
         'req_to_mqtt_thread': Queue(),
         'req_to_tk_thread': Queue(),
         'obj_to_tk_thread': Queue(),
@@ -1835,13 +1824,12 @@ def app_start():
         }
     }
 
-
     selected_theme = local_state['config']['theme']
     theme_colors = themes.get(selected_theme, themes['light'])
     local_state.update(theme_colors)
 
-    mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True)
-    logic_thread_obj = threading.Thread(target = logic_thread, daemon = True)
+    mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
+    logic_thread_obj = threading.Thread(target = logic_thread, daemon = True) # Handles broker/client auth, heavy computational tasks
 
     config_initialized.wait(timeout = 30)
 
@@ -1849,17 +1837,17 @@ def app_start():
         with open(LOG_FILE, 'a') as file:
             _ts = get_timestamp(True)
             file.write(f'{_ts}  Configuration initialization timeout.')
-
     else:
         mqtt_thread_obj.start()
         logic_thread_obj.start()
 
-    tk_thread()
+    #tk_thread()
 
-    mqtt_thread_obj.join()
-    logic_thread_obj.join()
-    timer_thread.join()
-    exit(0)
+    #mqtt_thread_obj.join()
+    #logic_thread_obj.join()
+    #timer_thread.join()
+
+    time.sleep(300)
 
 if __name__ == '__main__':
     app_start()
