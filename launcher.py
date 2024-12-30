@@ -80,26 +80,25 @@ def install_dependencies():
     print("    • Installing Missing Dependancies")
     run_command(f"{pip_path} install -r {REQUIREMENTS_FILE}", silent=True)
 
-def ignore_venv():
+def ignore_files():
     """Ensures the venv directory is excluded from Git tracking."""
     gitignore_path = os.path.join(PROJECT_DIR, ".gitignore")
-    venv_entry = "venv/\n"
-    no_update_entry = 'resources/no_update.txt'
-
+    ignored = ['venv/', 'resources/no_update.txt', 'resources/log.txt']
+    
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r+") as gitignore:
-            content = gitignore.readlines()
-            if venv_entry not in content:
-                gitignore.write(venv_entry)
-                print("    • Now ignoring /venv")
+            content = [line.strip() for line in gitignore.readlines()]
+            for item in ignored:
+                if item not in content:
+                    gitignore.write(f'\n{item}')
+                    print(f'    • Now ignoring {item}')
             
-            if gitignore not in content:
-                gitignore.write(no_update_entry)
-                print('    • Now ignoring no_update.txt')
     else:
         with open(gitignore_path, "w") as gitignore:
-            gitignore.write(venv_entry)
-            gitignore.write(no_update_entry)
+            for item in ignored:
+                gitignore.write(f'\n{item}')
+                print(f'    • Now ignoring {item}')
+
         print("    √ Created .gitignore\n    √ Now ignoring /venv\n    √ Now ignoring no_update.txt")
 
     # Attempt to untrack the venv directory
@@ -151,7 +150,7 @@ def main():
 
     # Ensure venv is ignored by Git
     print("Verifying Git Ignore List...")
-    ignore_venv()
+    ignore_files()
 
     # Activate the environment and run the program
     print("Starting NMR...")
