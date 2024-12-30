@@ -55,6 +55,7 @@ import threading
 import hmac
 import hashlib
 import secrets
+import subprocess
 import random
 import tkinter as tk
 
@@ -1157,7 +1158,8 @@ def get_config():
                          write,
                          stop)
             
-    config = {'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
+    config = {'mode': parser.get('OPERATION', 'mode', fallback = 'client'),
+            'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
             'vkeyboard': parser.getboolean('GUI', 'vkeyboard', fallback = True),
             'theme': parser.get('GUI', 'theme', fallback = 'dark'),
             'main_object_name': parser.get('GUI', 'main_object_name', fallback = 'Order'),
@@ -1536,10 +1538,10 @@ def logic_thread():
     except Exception as e:
         print(f'Connection Failed: {e}')
 
-def tk_thread():
+def client_tk_thread():
     global local_state
     global ui_ready_event
-    global timer_thread
+    global client_timer_thread
     
     ui_ready_event = threading.Event() # Signals to the rest of the program that they can it with the UI
 
@@ -1665,7 +1667,7 @@ def tk_thread():
 
         root.after(_delay, _time_tracker)
     
-    timer_thread = threading.Thread(target = _time_tracker, daemon = True)
+    client_timer_thread = threading.Thread(target = _time_tracker, daemon = True)
 
     if local_state['config']['theme'] == 'pride':
         global gradient_step, current_color
@@ -1675,7 +1677,7 @@ def tk_thread():
 
     load_images()
 
-    timer_thread.start()
+    client_timer_thread.start()
     
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
     root.after(500, ui_ready_event.set()) # Ensures the UI is fully displayed and ready before allowing other threads to send requests to the tk thread.
@@ -1683,172 +1685,261 @@ def tk_thread():
 
 def app_start():
     global local_state
-
-    local_state = {
-        'config':get_config(),
-        'images': {},
-        'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
-        'sec_obj_refs': {},
-        'mc_panel_ref': None,
-        'sec_panel_ref': None,
-        'set_panel_ref': None,
-        'active_panel_ref': None,
-        'broker_verified': False,
-        'manual_reconnect': False,
-        'side_bg_color': '',
-        'side_fg_color': '',
-        'mc_bg_color': '',
-        'mc_fg_color': '',
-        'accent_bg_color': '',
-        'accent_fg_color': '',
-        'icons': '',
-        'screen_width': None,
-        'screen_height': None,
-        'is_object_active': False,
-        'active_obj_id': None,
-        'auth_messages': Queue(),
-        'req_to_mqtt_thread': Queue(),
-        'req_to_tk_thread': Queue(),
-        'obj_to_tk_thread': Queue(),
-        'req_to_logic_thread': Queue(),
-        'obj_to_logic_thread': Queue(),
-    }
     
-    themes = {
-        'user_defined':{
-            'mc_bg_color': '',
-            'mc_fg_color': '',
-            'side_bg_color': '',
-            'side_fg_color': '',
-            'accent_fg_color': '',
-            'accent_bg_color': '',
-            'icons': ''
-        },
-        'light': {
-            'mc_bg_color': '#E5D9F2',
-            'mc_fg_color': '#000000',
-            'side_bg_color': '#A594F9',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#000000',
-            'accent_bg_color': '#A594F9',
-            'icons': 'dark'
-        },
+    local_state = {
+                'platform': platform.system(),
+                'config': get_config(),
+                'images': {},
+                'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
+                'sec_obj_refs': {},
+                'mc_panel_ref': None,
+                'sec_panel_ref': None,
+                'set_panel_ref': None,
+                'active_panel_ref': None,
+                'broker_verified': False,
+                'manual_reconnect': False,
+                'side_bg_color': '',
+                'side_fg_color': '',
+                'mc_bg_color': '',
+                'mc_fg_color': '',
+                'accent_bg_color': '',
+                'accent_fg_color': '',
+                'icons': '',
+                'screen_width': None,
+                'screen_height': None,
+                'is_object_active': False,
+                'active_obj_id': None,
+                'auth_messages': Queue(),
+                'req_to_mqtt_thread': Queue(),
+                'req_to_tk_thread': Queue(),
+                'obj_to_tk_thread': Queue(),
+                'req_to_logic_thread': Queue(),
+                'obj_to_logic_thread': Queue(),
+            }
+    
+    if local_state['config']['mode'] == 'client':
+        themes = {
+            'user_defined':{
+                'mc_bg_color': '',
+                'mc_fg_color': '',
+                'side_bg_color': '',
+                'side_fg_color': '',
+                'accent_fg_color': '',
+                'accent_bg_color': '',
+                'icons': ''
+            },
+            'light': {
+                'mc_bg_color': '#E5D9F2',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#A594F9',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#000000',
+                'accent_bg_color': '#A594F9',
+                'icons': 'dark'
+            },
 
-        'light_blue': {
-            'mc_bg_color': '#89A8B2',
-            'mc_fg_color': '#000000', 
-            'side_bg_color': '#B3C8CF',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#000000',
-            'accent_bg_color': '#FFFFFF',
-            'icons': 'dark'
-        },
+            'light_blue': {
+                'mc_bg_color': '#89A8B2',
+                'mc_fg_color': '#000000', 
+                'side_bg_color': '#B3C8CF',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#000000',
+                'accent_bg_color': '#FFFFFF',
+                'icons': 'dark'
+            },
 
-        'light_green': {
-            'mc_bg_color': '#C2FFC7',
-            'mc_fg_color': '#000000',
-            'side_bg_color': '#9EDF9C',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '',
-            'accent_bg_color': '',
-            'icons': 'dark'
-        },
+            'light_green': {
+                'mc_bg_color': '#C2FFC7',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#9EDF9C',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '',
+                'accent_bg_color': '',
+                'icons': 'dark'
+            },
 
-        'dark': {
-            'mc_bg_color': '#2B2B2B',
-            'mc_fg_color': '#0F0F0F',
-            'side_bg_color': '#3C3C3C',
-            'side_fg_color': '#F0F0F0',
-            'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#C0C0C0',
-            'icons': 'dark'
-        },
+            'dark': {
+                'mc_bg_color': '#2B2B2B',
+                'mc_fg_color': '#0F0F0F',
+                'side_bg_color': '#3C3C3C',
+                'side_fg_color': '#F0F0F0',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#C0C0C0',
+                'icons': 'dark'
+            },
 
-        'dark_blue': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#0000BB',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#0000BB',
-            'icons': 'dark'
-        },
+            'dark_blue': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#0000BB',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#0000BB',
+                'icons': 'dark'
+            },
 
-        'dark_red': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#BB0000',
-            'side_fg_color': '#FFFFFF',
-            'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#BB0000',
-            'icons': 'dark'
-        },
+            'dark_red': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#BB0000',
+                'side_fg_color': '#FFFFFF',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#BB0000',
+                'icons': 'dark'
+            },
 
-        'dark_purple': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#8D00FF',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#C0C0C0',
-            'icons': 'dark'
-        },
+            'dark_purple': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#8D00FF',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#C0C0C0',
+                'icons': 'dark'
+            },
 
-        'super_dark': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#3F3F3F',
-            'side_bg_color': '#3F3F3F',
-            'side_fg_color': '#FFFFFF',
-            'accent_fg_color': '#FFFFFF',
-            'accent_bg_color': '#3F3F3F',
-            'icons': 'dark'
-        },
+            'super_dark': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#3F3F3F',
+                'side_bg_color': '#3F3F3F',
+                'side_fg_color': '#FFFFFF',
+                'accent_fg_color': '#FFFFFF',
+                'accent_bg_color': '#3F3F3F',
+                'icons': 'dark'
+            },
 
-        'h4x0r': {
-            'mc_bg_color': '#BB0000',
-            'mc_fg_color': '#000000',
-            'side_bg_color': '#000000',
-            'side_fg_color': '#BB0000',
-            'accent_bg_color': '#000000',
-            'accent_fg_color': '#BB0000',
-            'icons': 'red'
-        },
+            'h4x0r': {
+                'mc_bg_color': '#BB0000',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#000000',
+                'side_fg_color': '#BB0000',
+                'accent_bg_color': '#000000',
+                'accent_fg_color': '#BB0000',
+                'icons': 'red'
+            },
 
-        'pride': {
-            'mc_bg_color': '#F0F0F0',
-            'mc_fg_color': '#0F0F0F',
-            'side_bg_color': '#F0F0F0',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#F0F0F0',
-            'accent_bg_color': '#0F0F0F',
-            'icons': 'dark'
+            'pride': {
+                'mc_bg_color': '#F0F0F0',
+                'mc_fg_color': '#0F0F0F',
+                'side_bg_color': '#F0F0F0',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#F0F0F0',
+                'accent_bg_color': '#0F0F0F',
+                'icons': 'dark'
+            }
         }
-    }
 
-    selected_theme = local_state['config']['theme']
-    theme_colors = themes.get(selected_theme, themes['light'])
-    local_state.update(theme_colors)
+        selected_theme = local_state['config']['theme']
+        theme_colors = themes.get(selected_theme, themes['light'])
+        local_state.update(theme_colors)
 
-    mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
-    logic_thread_obj = threading.Thread(target = logic_thread, daemon = True) # Handles broker/client auth, heavy computational tasks
+        client_mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
+        client_logic_thread_obj = threading.Thread(target = logic_thread, daemon = True) # Handles broker/client auth, heavy computational tasks
 
-    config_initialized.wait(timeout = 30)
+        config_initialized.wait(timeout = 30)
 
-    if not config_initialized.is_set():
-        with open(LOG_FILE, 'a') as file:
-            _ts = get_timestamp(True)
-            file.write(f'{_ts}  Configuration initialization timeout.')
-    else:
-        mqtt_thread_obj.start()
-        logic_thread_obj.start()
+        if not config_initialized.is_set():
+            with open(LOG_FILE, 'a') as file:
+                _ts = get_timestamp(True)
+                file.write(f'{_ts}  Configuration initialization timeout.')
+        else:
+            client_mqtt_thread_obj.start()
+            client_logic_thread_obj.start()
 
-    tk_thread()
+        client_tk_thread()
 
-    mqtt_thread_obj.join()
-    logic_thread_obj.join()
-    timer_thread.join()
+        client_mqtt_thread_obj.join()
+        client_logic_thread_obj.join()
+        client_timer_thread.join()
 
-    time.sleep(300)
+    elif local_state['config']['mode'] == 'broker':
+        def is_broker_running(plat):
+            if plat == 'Linux':
+                try:
+                    result = subprocess.run(
+                        ['systemctl', 'is-active', '--quiet', 'mosquitto'],
+                        check = True
+                    )
+                    return True
+                
+                except subprocess.CalledProcessError:
+                    return False
+            elif plat == 'Windows':
+                try:
+                    result = subprocess.check_output(['sc', 'query', 'mosquitto'], universal_newlines = True
+                                                     )
+                    return True
+                
+                except subprocess.CalledProcessError:
+                    return False
+            else:
+                print(f'{plat} is not compatible with this version of NMR.\nIf you belive you received this message in error, contact your administrator.')
+        
+        def start_broker(plat):
+            _service = "mosquitto"
+
+            try:
+                if plat == 'Linux':
+                    subprocess.run(["sudo", "systemctl", "start", _service], check = True)
+                elif plat == 'Windows':
+                    subprocess.run(["sc", "start", _service], check = True)
+            
+            except subprocess.CalledProcessError as e:
+                print('Unable to start broker!\n{e}')
+
+        def _get_broker_path(plat, service):
+            try:
+                if plat == 'Linux':
+                    result = subprocess.check_output(["which", service], universal_newlines = True)
+                    return result.strip()
+                
+                elif plat == 'Windows':
+                    result = subprocess.check_output(["where", service], universal_newlines = True)
+                    return result.strip()
+            except subprocess.CalledProcessError as e:
+                pass
+
+        def _get_broker_config(broker_path, plat):
+            global SERVICE_DIR, MOSQUITTO_CONF
+            SERVICE_DIR = os.path.dirname(broker_path)
+            MOSQUITTO_CONF = os.path.join(SERVICE_DIR, "mosquitto.conf")
+
+            try:
+                if os.path.exists(MOSQUITTO_CONF):
+                    with open(MOSQUITTO_CONF, 'r') as file:
+                        lines = file.readlines()
+                    
+                    for line in lines:
+                        if line.strip() and not line.strip().startswith('#'):
+                            key_value = line.strip().split(None, 1)
+                            if len(key_value) == 2:
+                                key, value = key_value
+                                update_local_state(key, value)
+                    return
+            except FileNotFoundError:
+                print(f'Unable To Locate Broker Configuration File\nExpected Location: {MOSQUITTO_CONF}')
+
+        plat = local_state['platform']
+        service = 'mosquitto'
+
+        if plat == 'Windows': os.system('cls')
+        if plat == 'Linux': os.system('clear')
+
+        print('***********************************\n* NMR - Broker Mode               *\n* Developed by Daniel Blake, 2024 *\n***********************************')
+        _is_alive = is_broker_running(plat)
+
+        if not _is_alive: 
+            print('    [x] Starting Broker Services')
+            start_broker()
+            if _is_alive: print('    [•] Broker Services Started Successfully')
+            else:
+                print('    [x] Unable To Start Broker Services. Please Contact Your Administrator.')
+                exit()
+
+        _get_broker_config(_get_broker_path(plat, service), plat)
+
+    elif local_state['config']['mode'] == 'admin':
+        print('Admin Mode Enabled')
 
 if __name__ == '__main__':
     app_start()
