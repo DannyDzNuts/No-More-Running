@@ -4,6 +4,7 @@ import subprocess
 import platform
 import urllib.request
 import shutil
+import ctypes
 
 # Constants
 REPO_URL = "https://github.com/DannyDzNuts/No-More-Running.git"
@@ -16,12 +17,33 @@ MAIN_PROGRAM = os.path.join(PROJECT_DIR, "no_more_running.pyw")
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 # Helper Functions
-def run_command(command, shell=True, silent=False):
+def is_admin():
+    """
+    Checks if the script is running with administrative privileges.
+    Returns True if it is, False otherwise.
+    """
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+        
+def relaunch_as_admin():
+    """Relaunches the script with administrative privileges."""
+    try:
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, " ".join([os.path.abspath(__file__)] + sys.argv[1:]), None, 1
+        )
+        sys.exit(0)  # Exit the current script after relaunching
+    except Exception as e:
+        print(f"Failed to relaunch as admin: {e}")
+        sys.exit(1)
+        
+def run_command(command, shell = True, silent = False):
     """Runs a system command and exits on failure."""
     if silent:
-        result = subprocess.run(command, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(command, shell = shell, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     else:
-        result = subprocess.run(command, shell=shell)
+        result = subprocess.run(command, shell = shell)
 
     if result.returncode != 0:
         print(f"    !! Error: Command failed - {command}")
@@ -37,7 +59,7 @@ def download_file(url, destination):
 
 def ensure_git():
     """Ensures Git is installed."""
-    git_check = subprocess.run("git --version", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    git_check = subprocess.run("git --version", shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if git_check.returncode != 0:
         print("    + Installing Git...")
         if platform.system() == "Windows":
@@ -54,22 +76,128 @@ def clone_or_update_repo():
     """Clones or updates the repository."""
     if os.path.exists(PROJECT_DIR):
         os.chdir(PROJECT_DIR)
-        run_command("git pull origin nightly", silent=True)
+        run_command("git pull origin nightly", silent = True)
     else:
         print("    • Downloading NMR")
-        run_command(f"git clone {REPO_URL} {PROJECT_DIR}", silent=True)
+        run_command(f"git clone {REPO_URL} {PROJECT_DIR}", silent = True)
 
 def create_venv():
     """Creates the virtual environment if it doesn't exist."""
     if not os.path.exists(VENV_DIR):
         print("    • Creating Virtual Environment")
         if platform.system() == "Windows":
-            run_command(f"python -m venv {VENV_DIR}", silent=True)
+            run_command(f"python -m venv {VENV_DIR}", silent = True)
         else:
-            run_command(f"python3 -m venv {VENV_DIR}", silent=True)
+            run_command(f"python3 -m venv {VENV_DIR}", silent = True)
 
 def install_dependencies():
     """Installs required dependencies into the virtual environment."""
+    def is_mosquitto_in_path():
+        """Checks if Mosquitto is in the system's PATH."""
+        return shutil.which("mosquitto") is not None
+
+    def add_to_path_windows(directory):
+        """Adds a directory to the system PATH on Windows."""
+        try:
+            current_path = os.environ.get("PATH", "")
+            if not directory in current_path:
+                import winreg as reg
+                key = reg.OpenKey(reg.HKEY_CURRENT_USER, r"Environment", 0, reg.KEY_READ | reg.KEY_WRITE)
+                
+                try:
+                    user_path, _ = reg.QueryValueEx(key, "Path")
+                except FileNotFoundError:
+                    user_path = ""  # No existing PATH variable for the user
+                
+                if directory not in user_path:
+                    new_path = user_path + ";" + directory if user_path else directory
+                    reg.SetValueEx(key, "Path", 0, reg.REG_EXPAND_SZ, new_path)
+                else:
+                    reg.CloseKey(key)
+                    subprocess.run(["setx", "Path", new_path])
+            
+            relaunch_as_admin()
+        except Exception as e:
+            print(f"Failed to add {directory} to PATH: {e}")
+
+    def add_to_path_linux(directory):
+        """Adds a directory to the system PATH on Linux."""
+        path_file = os.path.expanduser("~/.bashrc")
+        try:
+            with open(path_file, "a") as f:
+                f.write(f"\n# Added by script\nexport PATH = {directory}:$PATH\n")
+        except Exception as e:
+            print(f"Failed to update PATH: {e}")
+        
+    def _is_broker_installed():
+        try:
+            result = subprocess.run(
+                ["mosquitto", "-h"],
+                stdout = subprocess.PIPE,
+                stderr = subprocess.PIPE,
+                text = True
+            )
+            return True
+
+        except FileNotFoundError:
+            return False
+        
+    def _download_file(url, save_path):
+        try:
+            with urllib.request.urlopen(url) as response, open(save_path, "wb") as out_file:
+                out_file.write(response.read())
+        except Exception as e:
+            print(f"    !! Failed To Install Mosquitto: {e}")
+        
+    def _install_broker():
+        service = 'mosquitto'
+        sub_service = 'mosquitto-clients'
+        plat = platform.system()
+        
+        if _is_broker_installed():
+            if not is_mosquitto_in_path():
+                if plat == 'Linux': add_to_path_linux()
+                if plat == 'Windows': add_to_path_windows()
+            return
+        
+        if plat == 'Linux':
+            try:
+                mosquitto_dir = "/usr/sbin"
+                subprocess.run(['sudo', 'apt-get', 'update'],
+                            check = True,
+                            text = True,
+                            capture_output = True)
+                
+                subprocess.run(
+                    ['sudo', 'apt-get', '-y', 'install', service, sub_service],
+                    check = True,
+                    text = True,
+                    capture_output = True
+                )
+                
+            except subprocess.CalledProcessError as e:
+                print('    !! Mosquitto is missing from your system and failed to install automatically.')
+
+            if not is_mosquitto_in_path():
+                add_to_path_linux()
+                
+        elif plat == 'Windows':
+            try:
+                mosquitto_dir = r"C:\Program Files\mosquitto"
+                installer_url = "https://mosquitto.org/files/binary/win64/mosquitto-2.0.15-install-windows-x64.exe"
+                save_path = os.path.join(os.getcwd(), "mosquitto-installer.exe")
+                
+                _download_file(installer_url, save_path)
+
+                subprocess.run([save_path, "/S"], check = True)  # Silent install
+                os.remove(save_path)
+                
+            except subprocess.CalledProcessError as e:
+                print('    !! Mosquitto is missing from your system and failed to install automatically.')
+            
+            if not is_mosquitto_in_path():
+                add_to_path_windows(mosquitto_dir)
+                
     print('    • Detecting Installed Dependancies')
     pip_path = (
         os.path.join(VENV_DIR, "Scripts", "pip")  # Windows
@@ -78,7 +206,8 @@ def install_dependencies():
     )
 
     print("    • Installing Missing Dependancies")
-    run_command(f"{pip_path} install -r {REQUIREMENTS_FILE}", silent=True)
+    if not is_mosquitto_in_path():_install_broker()
+    run_command(f"{pip_path} install -r {REQUIREMENTS_FILE}", silent = True)
 
 def ignore_files():
     """Ensures the venv directory is excluded from Git tracking."""
@@ -102,9 +231,9 @@ def ignore_files():
         print("    √ Created .gitignore\n    √ Now ignoring /venv\n    √ Now ignoring no_update.txt")
 
     # Attempt to untrack the venv directory
-    result = subprocess.run("git ls-files --error-unmatch venv", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run("git ls-files --error-unmatch venv", shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     if result.returncode == 0:
-        run_command("git rm -r --cached venv", shell=True, silent=True)
+        run_command("git rm -r --cached venv", shell = True, silent = True)
 
 def detect_ssh():
     """Detects if the script is being run over SSH."""
@@ -131,6 +260,11 @@ def activate_and_launch():
 
 def main():
     """Main launcher logic."""
+    
+    # Ensure Launcher Is Running As Admin on Windows
+    if os.name == 'nt':
+        if not is_admin(): relaunch_as_admin()
+    
     # Ensure Git is installed
     print("Verifying Git Installation...")
     ensure_git()

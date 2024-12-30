@@ -1885,7 +1885,7 @@ def app_start():
                     subprocess.run(["sc", "start", _service], check = True)
             
             except subprocess.CalledProcessError as e:
-                print('Unable to start broker!\n{e}')
+                print(f'Unable to start broker! Please contact your administrator.')
 
         def _get_broker_path(plat, service):
             try:
@@ -1926,17 +1926,16 @@ def app_start():
         if plat == 'Linux': os.system('clear')
 
         print('***********************************\n* NMR - Broker Mode               *\n* Developed by Daniel Blake, 2024 *\n***********************************')
-        _is_alive = is_broker_running(plat)
+        _is_broker_running = is_broker_running(plat)
 
-        if not _is_alive: 
-            print('    [x] Starting Broker Services')
-            start_broker()
-            if _is_alive: print('    [•] Broker Services Started Successfully')
-            else:
-                print('    [x] Unable To Start Broker Services. Please Contact Your Administrator.')
-                exit()
+        if not _is_broker_running: 
+            start_broker(plat)
+            if not _is_broker_running: exit()
 
-        _get_broker_config(_get_broker_path(plat, service), plat)
+        broker_path = _get_broker_path(plat, service)
+        _get_broker_config(broker_path, plat)
+        
+        print('Starting Broker Management Loop')
 
     elif local_state['config']['mode'] == 'admin':
         print('Admin Mode Enabled')
