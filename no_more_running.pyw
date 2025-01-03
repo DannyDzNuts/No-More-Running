@@ -55,11 +55,11 @@ import threading
 import hmac
 import hashlib
 import secrets
+import subprocess
 import random
 import tkinter as tk
 
 from math import radians, sin, cos
-from contextlib import redirect_stdout, redirect_stderr
 from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
 from datetime import datetime
@@ -131,11 +131,13 @@ class ContentPanel(tk.Frame):
                                       bg = local_state['side_bg_color'],
                                       highlightthickness = 0)
         
+        _prefix = (f"{local_state['icons']}_")
+
         try:
-            _img_left_arrow_path = os.path.join(IMG_DIR, 'arrow_left.png')
-            _img_right_arrow_path = os.path.join(IMG_DIR, 'arrow_right.png')
-            _img_first_page_path = os.path.join(IMG_DIR, 'first_page.png')
-            _img_last_page_path = os.path.join(IMG_DIR, 'last_page.png')
+            _img_left_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_left.png')
+            _img_right_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_right.png')
+            _img_first_page_path = os.path.join(IMG_DIR, f'{_prefix}first_page.png')
+            _img_last_page_path = os.path.join(IMG_DIR, f'{_prefix}last_page.png')
             _img_left_arrow = Image.open(_img_left_arrow_path).resize((56, 56))
             _img_right_arrow = Image.open(_img_right_arrow_path).resize((56, 56))
             _img_first_page = Image.open(_img_first_page_path).resize((38, 38))
@@ -365,6 +367,7 @@ class ContentObject(tk.Canvas):
 
         # Colors (bd = Border)
         self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
+        self.active_bg = local_state['accent_bg_color']
         self.fg_color = local_state['mc_fg_color']
         self.inactive_bd = self._brighten_color(self.inactive_bg, brighten_by = 10)
         self.active_bd = self._brighten_color(self.inactive_bd, 30)
@@ -388,37 +391,46 @@ class ContentObject(tk.Canvas):
         self.configure(height = self.height, 
                         width = self.width,
                         bd = 0, 
-                        highlightthickness = 0,
-                        bg = local_state['mc_bg_color']
+                        highlightthickness = 3,
+                        highlightbackground = self.inactive_bd,
+                        bg = self.inactive_bg
         )
 
-        self.pack_propagate(False)
         self.bind("<Button-1>", self._set_selected)
-        self._draw_object()
 
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
+            self.enable_masking = local_state['config']['main_enable_masking']
+            self.enable_timer = local_state['config']['main_enable_timer']
         else:
             self.ref_dict = 'sec_obj_refs'
+            self.enable_masking = local_state['config']['sec_enable_masking']
+            self.enable_timer = local_state['config']['sec_enable_timer']
         
         if not subtitle_val is None:
             self.subtitle_enabled = True
             self.unmasked_subtitle_val = subtitle_val
             self.masked_subtitle_val = ''
-            self.masking_enabled = local_state['config']['enable_masking']
             self.is_masked = False
         else:
             self.subtitle_enabled = False
+
+        if isinstance(self.enable_masking, str): # Python interprets bools weird, let's make sure we get the right value...
+            self.enable_masking = self.enable_masking.lower() in ('true', '1', 'yes', 'y')
         
-        if self.masking_enabled:
+        self.enable_masking = bool(self.enable_masking)
+
+        if self.enable_masking:
             self.is_masked = True
             self.masked_subtitle_val = '*' * (len(self.unmasked_subtitle_val) - 4) + self.unmasked_subtitle_val[-4:]
             _init_subtitle_val = self.masked_subtitle_val
         else:
             _init_subtitle_val = self.unmasked_subtitle_val
 
-        self.img_flag_a = local_state['images']['main_flag_a']
-        self.img_flag_b = local_state['images']['main_flag_b']
+        _prefix = local_state['icons']
+
+        self.img_flag_a = local_state['images'][f'{_prefix}_main_flag_a']
+        self.img_flag_b = local_state['images'][f'{_prefix}_main_flag_b']
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
@@ -441,12 +453,13 @@ class ContentObject(tk.Canvas):
             self.lbl_subtitle.place(relx = 0.5, rely = 0.3, anchor = 'center')
             self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
-        if enable_timer:
-            self.time_elapsed = 0
-            self.time_thread = threading.Thread(target = self._update_elapsed_time, daemon = True)
-
+        if isinstance(self.enable_timer, str):
+            self.enable_timer = self.enable_timer.lower() in ('true', '1', 'yes', 'y')
+        
+        if self.enable_timer:
+            self.creation_time = time.time()
             self.lbl_timer = tk.Label(self,
-                                        text = self._format_time(),
+                                        text = '00:00:00',
                                         font = ('Ariel', 20, 'bold'),
                                         bg = self.inactive_bg,
                                         fg = self.fg_color)
@@ -504,67 +517,6 @@ class ContentObject(tk.Canvas):
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
         self.update_idletasks()
-        self.time_thread.start()
-    
-    def _draw_object(self, outline_color=None, fill=None, _border_thickness=2):
-        """Draw a rounded rectangle background with an outside border using polygons."""
-        self.delete("all")
-        radius = self.corner_radius
-
-        if outline_color is None:
-            outline_color = self.inactive_bd
-
-        if fill is None:
-            fill = self.inactive_bg
-
-        steps = 1
-
-        def generate_arc_points(x, y, radius, start_angle, end_angle, steps):
-
-            points = []
-            for step in range(steps + 1):
-                angle = radians(start_angle + step * (end_angle - start_angle) / steps)
-                points.append((x + radius * cos(angle), y + radius * sin(angle)))
-            return points
-
-        filled_points = []
-        # Top-left corner
-        filled_points += generate_arc_points(radius, radius, radius, 180, 270, steps)
-        # Top-right corner
-        filled_points += generate_arc_points(self.width - radius, radius, radius, 270, 360, steps)
-        # Bottom-right corner
-        filled_points += generate_arc_points(self.width - radius, self.height - radius, radius, 0, 90, steps)
-        # Bottom-left corner
-        filled_points += generate_arc_points(radius, self.height - radius, radius, 90, 180, steps)
-
-        # Draw the filled background
-        self.create_polygon(filled_points, fill=fill, outline="", smooth=True)
-
-        # Generate points for the border
-        border_points = []
-        # Top-left corner
-        border_points += generate_arc_points(radius, radius, radius - _border_thickness / 2, 180, 270, steps)
-        # Top-right corner
-        border_points += generate_arc_points(self.width - radius, radius, radius - _border_thickness / 2, 270, 360, steps)
-        # Bottom-right corner
-        border_points += generate_arc_points(self.width - radius, self.height - radius, radius - _border_thickness / 2, 0, 90, steps)
-        # Bottom-left corner
-        border_points += generate_arc_points(radius, self.height - radius, radius - _border_thickness / 2, 90, 180, steps)
-
-        # Border
-        self.create_polygon(border_points, fill="", outline=outline_color, width=_border_thickness, smooth=True)
-
-
-    def _format_time(self):
-        hours, remainder = divmod(self.time_elapsed, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        return f'Age: {hours:02}:{minutes:02}:{seconds:02}'
-    
-    def _update_elapsed_time(self):
-        self.time_elapsed += 1
-        self.lbl_timer.config(text = self._format_time())
-        self.after(1000, self._update_elapsed_time)
     
     def _brighten_color(self, hex_color, brighten_by=10):
         hex_color = hex_color.lstrip("#")
@@ -598,14 +550,12 @@ class ContentObject(tk.Canvas):
             _active_obj_id = str(local_state.get('active_obj_id'))
             _active_obj = local_state[self.ref_dict][_active_obj_id]
             _active_obj.deselect()
-            update_local_state('is_object_active', False)
-            update_local_state('active_obj_id', '')
         
-        _other_object_active = local_state['is_object_active']
+        _other_object_active = local_state['is_object_active'] # Double checking to ensure something else wasn't selected before we reached this line
 
         if not self.is_selected and not _other_object_active:
-            self._draw_object(outline_color = self.active_bd, fill = self.accent_bg_color)
-            # self.configure(bg = local_state['mc_bg'])
+            self.configure(highlightbackground = self.active_bd, bg = self.active_bg)
+
             if hasattr(self, 'lbl_flag_a'):
                 self.cont_flag_a.configure(bg = self.accent_bg_color)
                 self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
@@ -618,7 +568,7 @@ class ContentObject(tk.Canvas):
             if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
             if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
 
-            if self.masking_enabled:
+            if self.enable_masking:
                 self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
 
             self.is_selected = True
@@ -629,9 +579,8 @@ class ContentObject(tk.Canvas):
             self.deselect()
 
     def deselect(self):
-        self.configure(bg = local_state['mc_bg_color'])
+        self.configure(bg = self.inactive_bg, highlightbackground = self.inactive_bd)
         self.lbl_title.configure(bg = self.inactive_bg)
-        self._draw_object()
 
         if hasattr(self, 'cont_flag_a'):
             self.cont_flag_a.configure(bg = self.inactive_bg)
@@ -653,78 +602,13 @@ class ContentObject(tk.Canvas):
             self.lbl_timer.configure(fg = self.fg_color)
             self.lbl_timer.configure(bg = self.inactive_bg)
 
-        if self.masking_enabled:
+        if self.enable_masking is True:
             self.lbl_subtitle.configure(text = self.masked_subtitle_val)
 
         self.is_selected = False
 
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
-
-    def page(self, requestor="Debug"):
-        # Get the root window from the parent
-        root = self.winfo_toplevel()
-
-        # Create a semi-transparent full-screen overlay
-        overlay = tk.Frame(root, bg = self.inactive_bg)
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        overlay.tkraise()  # Ensure the overlay is above all other widgets
-
-        # Add object details
-        obj_name = self.lbl_title.cget("text")
-        obj_reference_name = local_state["config"]["main_object_name"]
-
-        # Add a label to display the message
-        message_label = tk.Label(
-            overlay,
-            text=f"Page received from {requestor}\n\n{obj_reference_name}: {obj_name}",
-            font=("Arial", 48),
-            bg = self.inactive_bg,
-            fg = self.fg_color,
-        )
-        
-        message_label.place(relx=0.5, rely=0.4, anchor="center")
-
-        # Event for sound playback control
-        sound_event = threading.Event()
-
-        # Dismiss button functionality
-        def dismiss():
-            sound_event.set()
-            overlay.destroy()
-
-        # Add a dismiss button
-        dismiss_button = tk.Button(
-            overlay,
-            text="Dismiss",
-            bg="#333333",
-            fg="#FFFFFF",
-            font=("Arial", 36),
-            command=dismiss,
-        )
-
-        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
-
-        # Function to play notification sound
-        def play_sound():
-            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
-            if os.path.exists(sound_path):
-                iteration = 0
-                while not sound_event.is_set():
-                    if iteration >= 3:  # Play sound up to 3 times
-                        break
-                    try:
-                        sound = pygame.mixer.Sound(sound_path)
-                        sound.play()
-                        time.sleep(sound.get_length())
-                        time.sleep(10)  # Delay between plays
-                    except Exception as e:
-                        break
-                    iteration += 1
-
-        # Start the sound thread
-        sound_thread = threading.Thread(target=play_sound, daemon=True)
-        sound_thread.start()
 
 class SettingsContent(tk.Frame):
     def __init__(self, parent, mode):
@@ -800,8 +684,9 @@ class SideBar(tk.Frame):
         sec_obj_name = local_state['config']['sec_object_name']
 
         # Load and resize an image using Pillow for the logo
+        _prefix = f"{local_state['icons']}_"
         try:
-            raw_img = Image.open(os.path.join(IMG_DIR, 'logo.png'))
+            raw_img = Image.open(os.path.join(IMG_DIR, f'{_prefix}logo.png'))
             ready_img = raw_img.resize((int(min_width - 25), int(min_width - 30)))
             self.image = ImageTk.PhotoImage(ready_img)
         except FileNotFoundError:
@@ -821,19 +706,20 @@ class SideBar(tk.Frame):
         # Create a spacer frame
         self.spacer = tk.Frame(self, width = 50, height = 1, bg = self.bg_color)
 
+        _prefix = f"{local_state['icons']}_"
+
         # Create buttons (with icons and labels for extended mode)
         self.buttons = {
-            'minimize': self._create_sidebar_button('Minimize', 'menu.png', command=self._toggle),
-            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', 'show_main_objs.png', command = self._show_main_panel),
-            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', 'show_sec_objs.png', command=self._show_sec_panel),
-            'create': self._create_sidebar_button('Create', 'create.png', command=self._create_object),
-            'modify': self._create_sidebar_button('Modify', 'edit.png', command=self._edit_object),
-            'page': self._create_sidebar_button('Page', 'page.png', command=self._page_object),
-            'remove': self._create_sidebar_button('Remove', 'delete.png', command=self._delete_object),
-            'exit': self._create_sidebar_button('Exit', 'exit.png', command=self._exit_program),
-            'settings': self._create_sidebar_button('Settings', 'settings.png', command=self._show_set_panel),
-            'generate_objects': self._create_sidebar_button('Generate Objs', 'generate.png', command=self.main_content_panel._trigger_gen_mainobj),
-            'page_active': self._create_sidebar_button('Page Active', 'page.png', command = self.main_content_panel._page_active)
+            'minimize': self._create_sidebar_button('Minimize', f'{_prefix}menu.png', command=self._toggle),
+            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', f'{_prefix}show_main_objs.png', command = self._show_main_panel),
+            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', f'{_prefix}show_sec_objs.png', command=self._show_sec_panel),
+            'create': self._create_sidebar_button('Create', f'{_prefix}create.png', command=self._create_object),
+            'modify': self._create_sidebar_button('Modify', f'{_prefix}edit.png', command=self._edit_object),
+            'page': self._create_sidebar_button('Page', f'{_prefix}page.png', command=self._debug_page_object),
+            'remove': self._create_sidebar_button('Remove', f'{_prefix}delete.png', command=self._delete_object),
+            'exit': self._create_sidebar_button('Exit', f'{_prefix}exit.png', command=self._exit_program),
+            'settings': self._create_sidebar_button('Settings', f'{_prefix}settings.png', command=self._show_set_panel),
+            'generate_objects': self._create_sidebar_button('Generate Objs', f'{_prefix}generate.png', command=self.main_content_panel._trigger_gen_mainobj),
         }
 
         # Pack the logo and spacer
@@ -977,8 +863,80 @@ class SideBar(tk.Frame):
     def _edit_object(self):
         pass
 
-    def _page_object(self):
-        pass
+    def _debug_page_object(self):
+        # Get the root window from the parent
+        root = self.winfo_toplevel()
+        _requestor = 'Debug'
+        _active_obj_id = local_state['active_obj_id']
+        _active_obj_id = str(_active_obj_id)
+
+        if _active_obj_id in local_state['main_obj_refs']:
+            _obj = local_state['main_obj_refs'][_active_obj_id]
+        elif _active_obj_id in local_state['sec_obj_refs']:
+            _obj = local_state['sec_obj_refs'][_active_obj_id]
+        else:
+            return   
+
+        # Create a semi-transparent full-screen overlay
+        overlay = tk.Frame(root, bg = _obj.inactive_bg)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.tkraise()  # Ensure the overlay is above all other widgets
+
+        # Add object details
+        obj_name = _obj.lbl_title.cget("text")
+        obj_reference_name = local_state["config"]["main_object_name"]
+
+        # Add a label to display the message
+        message_label = tk.Label(
+            overlay,
+            text=f"Page received from {_requestor}\n\n{obj_reference_name}: {obj_name}",
+            font=("Arial", 48),
+            bg = _obj.inactive_bg,
+            fg = _obj.fg_color,
+        )
+        
+        message_label.place(relx=0.5, rely=0.4, anchor="center")
+
+        # Event for sound playback control
+        sound_event = threading.Event()
+
+        # Dismiss button functionality
+        def dismiss():
+            sound_event.set()
+            overlay.destroy()
+
+        # Add a dismiss button
+        dismiss_button = tk.Button(
+            overlay,
+            text="Dismiss",
+            bg="#333333",
+            fg="#FFFFFF",
+            font=("Arial", 36),
+            command=dismiss,
+        )
+
+        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
+
+        # Function to play notification sound
+        def play_sound():
+            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
+            if os.path.exists(sound_path):
+                iteration = 0
+                while not sound_event.is_set():
+                    if iteration >= 3:  # Play sound up to 3 times
+                        break
+                    try:
+                        sound = pygame.mixer.Sound(sound_path)
+                        sound.play()
+                        time.sleep(sound.get_length())
+                        time.sleep(10)  # Delay between plays
+                    except Exception as e:
+                        break
+                    iteration += 1
+
+        # Start the sound thread
+        sound_thread = threading.Thread(target=play_sound, daemon=True)
+        sound_thread.start()
 
     def _delete_object(self):
         pass
@@ -1030,13 +988,13 @@ class StatusPanel(tk.Frame):
         _frm_spacer.grid(row = 0, column = 2)
         self.lbl_client_info.grid(row = 0, column = 3, sticky = 'ne')
 
-def get_timestamp(include_month = False):
-    if include_month:
+def get_timestamp(include_date = False):
+    if include_date:
         return time.strftime('%m/%d/%y @ %H:%M:%S')
     else:
         return time.strftime('%H:%M:%S')
     
-def get_error_message(_e, _catagory = 'general'):
+def get_error_message(err, catagory = 'general'):
     _error_messages = {
         'configuration': {FileNotFoundError: lambda e: f'No config file was detected and one could not be created.\nExpected File Location: {e}',
                         PermissionError: lambda e: f'No config file was detected and NMR does not have permission to write a new one to disk.\n Error: {e}',
@@ -1058,13 +1016,47 @@ def get_error_message(_e, _catagory = 'general'):
                                 TypeError: lambda e: f'Invalid key type. Supplied key is not in bytes format.\nError: {e}'}
     }
     
-    _error_catagory = _error_messages.get(_catagory)
+    _error_catagory = _error_messages.get(catagory)
     if _error_catagory: 
-        _message_function = _error_messages.get(type(_e))
-        if _message_function: return _message_function(_e)
+        _message_function = _error_messages.get(type(err))
+        if _message_function: return _message_function(err)
     
     return None
 
+def report_error(error, function, catagory = 'general', err_level = 'warn', interrupt_user = False, write_to_disk = False, stop_program = False, custom_message = ''):
+    _admin_message = (f'[{get_timestamp(include_date = True)}]    Level: {err_level}    Function: {function}    Error: {error}\n')
+    write_failure = False
+
+    def show_interrupt(): # Sends request to tk thread to notify user of issue
+        ui_ready_event.wait()
+        local_state['req_to_tk_thread'].put(('interrupt_user', _user_message, stop_program))
+        
+        if write_failure: # Hijacks the event to ensure users have time to write down errors if error cannot be written to disk
+            ui_ready_event.clear()
+            ui_ready_event.wait()
+
+        return
+    
+    if not custom_message == '': # Custom messages override default messages
+        _user_message = custom_message
+    else:
+        get_error_message(error, catagory)
+            
+    if write_to_disk: # Tries to write to disk, on failure alerts user for manual reporting
+        try:
+            with open(LOG_FILE, 'a') as file:
+                file.write(_admin_message)
+        except:
+            _user_message = 'An error has occured but was not able to be logged.\nPlease write this down and give it to your administrator:\n{_admin_message}'
+            interrupt_user = True
+            write_failure = True
+            
+    if interrupt_user:
+        show_interrupt()
+    
+    if stop_program:
+        exit(0)
+        
 def generate_default_config(parser):
     _default_config = {
         'GUI': {
@@ -1120,15 +1112,20 @@ def write_config_to_file(parser = None):
             parser.write(file)
 
     except Exception as e:
-        err_function = 'write_config_to_file'
-        err_action = 'write_default_config'
-        err_message = get_error_message(e, 'config')
-
-        if err_message:
-            local_state['to_logic_thread'].put((f'report_error,crit,False,False,{err_function}: {err_action},{err_message}'))
-        else:
-            local_state['to_logic_thread'].put((f'report_error,crit,False,False,{err_function}: {err_action},{e}'))
-
+        function = 'write_config_to_file'
+        error = e
+        level = 'crit'
+        catagory = 'disk'
+        
+        
+        report_error(error, 
+                    function, 
+                    catagory = catagory, 
+                    err_level = level, 
+                    interrupt_user = True, 
+                    write_to_disk = True, 
+                    stop_program = False)
+        
 def get_config():
     ''' Retrieves stored configuration or creates a new config file / loads defaults
         if no config file is found / accessible '''
@@ -1145,12 +1142,24 @@ def get_config():
             parser = configparser.ConfigParser()
             parser.read(CONFIG_FILE)
         except Exception as e:
-            err_message = get_error_message(e, 'config')
-
-            if err_message:
-                local_state['req_to_tk_thread'].put((f'error_report,crit,True,True,get_config: parser.read(CONFIG_FILE),{err_message}'))
-    
-    config = {'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
+            error = e
+            function = 'get_config'
+            catagory = 'disk'
+            level = 'crit'
+            interrupt = True
+            write = True
+            stop = True
+            
+            report_error(error,
+                         function,
+                         catagory,
+                         level,
+                         interrupt,
+                         write,
+                         stop)
+            
+    config = {'mode': parser.get('OPERATION', 'mode', fallback = 'client'),
+            'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
             'vkeyboard': parser.getboolean('GUI', 'vkeyboard', fallback = True),
             'theme': parser.get('GUI', 'theme', fallback = 'dark'),
             'main_object_name': parser.get('GUI', 'main_object_name', fallback = 'Order'),
@@ -1158,11 +1167,15 @@ def get_config():
             'main_flags_enabled': parser.getboolean('GUI', 'main_flags_enabled', fallback = False),
             'main_obj_flag_a_name': parser.get('GUI', 'main_obj_flag_a_name', fallback = 'Dessert'),
             'main_obj_flag_b_name': parser.get('GUI', 'main_obj_flag_b_name', fallback = 'Milkshake'),
+            'main_enable_masking': parser.getboolean('GUI', 'main_enable_masking', fallback = True),
+            'main_enable_timer': parser.getboolean('GUI', 'main_enable_timer', fallback = True),
             'sec_object_name': parser.get('GUI', 'sec_object_name', fallback = '86'),
             'sec_flag_a_name': parser.get('GUI', 'sec_flag_a_name', fallback = 'Limited'),
             'sec_flag_b_name': parser.get('GUI', 'sec_flag_b_name', fallback = 'O/S'),
             'sec_flags_enabled': parser.get('GUI', 'sec_flags_enabled', fallback = False),
-            'enable_masking': parser.get('GUI', 'enable_masking', fallback = True),
+            'sec_enable_masking': parser.getboolean('GUI', 'secondary_enable_masking', fallback = True),
+            'sec_enable_timer': parser.getboolean('GUI', 'secondary_enable_timer', fallback = True),
+            'timer_update_delay': parser.get('GUI', 'timer_update_delay', fallback = '5'),
             'enable_debug': parser.get('GUI','debug', fallback = False),
             'broker_ip': parser.get('NETWORK', 'broker_ip', fallback = '192.168.1.1'),
             'broker_port': parser.get('NETWORK', 'broker_port', fallback = '1883'),
@@ -1180,8 +1193,9 @@ def get_config():
     if config: 
         config_initialized.set()
         return config
-    
-def load_images():
+
+#Pre-load images to reduce object creation times.
+def load_images(): 
     def _generate_placeholder_img():
         _placeholder = Image.new('RGBA', (38, 38), (200, 200, 200, 255))
         _draw = ImageDraw.Draw(_placeholder)
@@ -1189,46 +1203,47 @@ def load_images():
         _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
 
         return _placeholder
-    #Pre-load images to reduce object creation times.
     
-    items = ['main_flag_a.png', 'main_flag_b.png', 'sec_flag_a.png', 'sec_flag_b.png']
-    for item in items:
+    _imgs = os.listdir(IMG_DIR)
+    _img_list = [item for item in _imgs]
+    _img_list.remove('logo.ico')
+
+    for item in _img_list:
         try:
             _path = os.path.join(IMG_DIR, item)
             _img = Image.open(_path).resize((38, 38))
-        except:
+        except Exception as e:
             _img = _generate_placeholder_img()
+            
+            error = e
+            function = 'load_images'
+            catagory = 'disk'
+            level = 'warn'
+            interrupt = False
+            write = True
+            
+            report_error(error, function, catagory, level, interrupt, write)
 
         _img_obj = ImageTk.PhotoImage(_img)
         _img_name = os.path.splitext(item)[0]
         update_local_state('images', {_img_name: _img_obj})
 
-# Used to safely update program state - queues are updated directly
+# Used to safely update program state - queues are updated directly, config changes are written to disk
 def update_local_state(key, value, section=None, sub_section=None):
     global local_state
-    """
-    Thread-safe way to live update program configuration and write
-    changes to disk. Ensures that missing keys are initialized as needed.
-    """
+
     with lock:
         if section is not None:
-            print('Section Detected: {section}')
             if key not in local_state:
-                print(f'Key Not Detect: {key}')
                 local_state[key] = {}
 
             if section not in local_state[key]:
-                print(f'Section Not Detected: {section}')
                 local_state[key][section] = {}
 
             if sub_section is None:
-                print(f'Sub Section Not Provided: {sub_section}')
                 local_state[key][section] = value
-                print(local_state[key][section])
             else:
-                print(f'Sub Section Provided: {sub_section}')
                 local_state[key][section][sub_section] = value
-                print(local_state[key][section][sub_section])
             
             if key == 'config':
                 write_config_to_file()
@@ -1243,7 +1258,7 @@ def update_local_state(key, value, section=None, sub_section=None):
             else:
                 local_state[key] = value
 
-def mqtt_thread():
+def client_mqtt_thread():
     '''Handles MQTT client connections, disconnections, authentication, and communications.'''
 
     # Paho-MQTT requires certain callback functions to accept parameters like client, userdata, rc, msg, properties, and flags.
@@ -1254,45 +1269,37 @@ def mqtt_thread():
     # Once the broker is authenticated, the client unsubscribes from the authentication topic and subscribes to the main topic.
 
     # Each communication has a 30-second timeout for both sides.
-    global local_state
-    verification_event = threading.Event()
-    client = mqtt.Client(local_state['config']['client_id'])
+    global local_state, verification_event, client
 
-    def _on_disconnect(client, userdata, rc, properties = None):
-        if not local_state['manual_reconnect']:
-            local_state['broker_verified'] = False
-#
-# UPDATE QUEUE PUSH
-#         
-        local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
-    
-    def _on_connect(client, userdata, flags, rc, properties = None):
-        if not local_state['manual_reconnect']: # Only for debug. Unsafe to use otherwise.
-            _verify_broker()
-    
-    def _on_message(client, userdata, msg, properties = None):
+    verification_event = threading.Event()
+    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
+    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
+    broker_ip = local_state['config']['broker_ip']
+
+    try:
+        broker_port = int(local_state['config']['broker_port'])
+    except Exception as e:
+        report_error(e, 'mqtt_thread', 'mqtt', 'warn', True, True, False, 'broker_port in settings.ini misconfigured as {local_state["config"]["broker_port"]}.')
+
+    def _on_client_message(client, userdata, msg, properties = None):
         message = msg.payload.decode()
+        print('    Msg Rec')
 
         if is_verifying_broker:
             # Expected format: client_id,response_type,payload
-            _client_id, _response_type, rec_payload = message.split(',')
+            try:
+                _client_id, _response_type, rec_payload = message.split(',')
+                print(_client_id, _response_type, rec_payload)
 
-            if _client_id == local_state['config']['client']['client_id']:
-                verification_event.set()
-                
-                _functions = {
-                    'hmac_auth_req_ok': _verify_broker._generate_nonce,
-                    'psk_refr_req_ok': _verify_broker._generate_nonce,
-                    'hmac_auth_nonce_echo': _verify_broker._request_hmac,
-                    'psk_refr_nonce_echo': _verify_broker._generate_psk,
-                    'hmac_auth_hmac_resp': _verify_broker._compare_hmac,
-                    'hmac_auth_echo': _verify_broker._set_auth,
-                    'psk_refr_echo': _verify_broker._verify_new_psk
-                }
-                
-                _action = _functions.get(_response_type)
-                if _action:
-                    _action(rec_payload)
+                if _client_id == local_state['config']['client']['client_id']:
+                    local_state['mqtt_messages'].put((_response_type, rec_payload))
+                    verification_event.set()
+
+            except Exception as e:
+                print(e)
+                report_error(e, '_on_message', 'mqtt', 'warn', False, True, False)
+
+                return
 
         else:
             # Expected format: sender_id,audience_id,request_type,object_id,object_title,object_subtitle,object_flag_a,object_flag_b
@@ -1313,63 +1320,103 @@ def mqtt_thread():
 
                 local_state['to_logic_thread'].put(_processed_payload)
 
+    def _on_client_disconnect(client, userdata, rc, properties = None):
+        if not local_state['manual_reconnect']:
+            local_state['broker_verified'] = False
+#
+# UPDATE QUEUE PUSH
+#         
+        local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
+    
+    def _on_client_connect(client, userdata, flags, rc, properties = None):
+        pass
+    
+    client.on_connect = _on_client_connect
+    client.on_disconnect = _on_client_disconnect
+    client.on_message = _on_client_message
+    
+    client.connect(broker_ip, broker_port)
+    client.loop_forever()
+    
+def logic_thread():
+    global local_state, client
+    
+    broker_ip = local_state['config']['broker_ip']
+    broker_port = local_state['config']['broker_port']
+    broker_qos = local_state['config']['broker_qos']
+
     def _publish(topic, payload):
-        _qos = local_state['config']['NETWORK']['broker_qos']
+        _qos = int(local_state['config']['broker_qos'])
         client.publish(topic, payload, _qos)
 
-    def _verify_broker():
+    def verify_broker():
         ''' Handles broker-to-client authentication '''
-        # Every step has a 30 second timeout. If a message is not received the connection is terminated.
-        global is_verifying_broker
-        _nonce = None
+        global is_verifying_broker, mode
 
-        is_verifying_broker = True
+        _nonce = None
+        is_verifying_broker = True # Ensures that only the authentication channel is subscribed to until broker auth is completed
+        mode = None # Tracks whether we're authing the broker or refreshing psk
 
         topic = 'authentication'
         client.subscribe(topic)
-
-        psk_exp_obj = datetime.strptime(local_state['config']['SECRETS']['expiration_date'], '%m/%d/%y')
-        today = datetime.today()
-
-        # Determines the type of request to send - If PSK is expired, requests a refresh using backup PSK
-        if psk_exp_obj >= today.date():
-            request_type = f'hmac_auth_req'
-        elif psk_exp_obj < today.date():
-            request_type = f'hmac_refr_req'
         
-        client_id = local_state['config']['CLIENT']['client_id']
-
-        payload = f'{request_type},{client_id}'
-        _publish(topic, payload)
-
-        verification_event.wait(timeout = 30)
-        if not verification_event.is_set(): _abort_auth('_verify_broker', 'timeout')
-
+        client_id = local_state['config']['client_id']
+        
         def _abort_auth(function, reason):
-            local_state['to_logic_thread'].put((f'report_error,False,True,broker auth failed: {function}: {reason}, Failed to authenticate broker. Please verify network settings and try again.'))
+            print('Aborting Authorization')
+
+            keys = local_state.keys()
+            items = ['psk_cipher_text', 'new_psk']
+
+            for item in items:
+                if item in keys:
+                    with lock:
+                        del local_state[item]
+
+            report_error(f'{reason}', f'{function}', 'mqtt', 'warn', True, True, False, f'{reason}')
             client.disconnect()
+
+        def _await_response():
+            global verification_event
+
+            verification_event.clear()
+            verification_event.wait(timeout = 30)
+
+            if not verification_event.is_set(): _abort_auth('_verify_broker', 'timeout')
+
+        def _initial_request():
+            ''' Requests Broker Authentication or PSK Refresh if PSK is expired '''
+
+            psk_exp_obj = datetime.strptime(local_state['config']['expiration_date'], '%m/%d/%y').date()
+            today = datetime.today()
+
+            # Determines the type of request to send - If PSK is expired, requests a refresh using backup PSK
+            if psk_exp_obj >= today.date():
+                request_type = f'hmac_auth_req' # Normal Auth Request
+                mode = 'auth'
+            elif psk_exp_obj < today.date():
+                request_type = f'hmac_refr_req' # Refresh Request
+                mode = 'refr'
+            
+            payload = f'{request_type},{client_id}'
+            _publish(topic, payload)
+            _await_response()
             
         def _generate_nonce(rec_payload):
             _nonce = secrets.token_hex(length = 32)
-            payload = f'{client_id},gen_nonce,{_nonce}'
-            verification_event.clear()
-            # Confirming received nonce with broker
-            _publish(topic, payload)
 
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): _abort_auth('_generate_nonce', 'timeout')
+            payload = f'{client_id},gen_nonce,{_nonce}'
+            _publish(topic, payload)
+            _await_response()
 
         def _request_hmac(rec_payload):
             payload = f'{client_id},hmac_auth_req_hmac,none'
-
-            verification_event.clear()
             _publish(topic, payload)
 
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): _abort_auth('_request_hmac', 'timeout')
+            _await_response()
         
         def _compare_hmac(rec_payload):
-            _encoded_psk = local_state['config']['SECRETS']['preshared_key'].encode()
+            _encoded_psk = local_state['config']['preshared_key'].encode()
             _expected_hmac = hmac.new(_encoded_psk, _nonce, hashlib.sha256).hexdigest()
             del _nonce
             del _encoded_psk
@@ -1404,7 +1451,7 @@ def mqtt_thread():
                 _new_psk = _new_psk.encode('utf-8')
 
             if len(_old_psk) == 32 and len(_new_psk) == 32:
-                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend=default_backend())
+                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend = default_backend())
                 _encryptor = _cipher.encryptor()
 
                 _padder = padding.PKCS7(algorithms.AES.block_size).padder()
@@ -1415,121 +1462,88 @@ def mqtt_thread():
                 return _encrypted_psk
 
             else:
-                local_state['to_logic_thread'].put('report_error,crit,True,True,_encrypt_psk: None,Unable to encrypt new PSK for transmission. Please ensure PSK is of valid 32 character hexidecimal format.')
-                
+                report_error('programming', '_encrypt_psk', 'mqtt', 'crit', True, True, True, f'Programming Error. Unable to encrypt new PSK.\nFor your safety, the program has been stopped. Please notify your administrator.\n\nAdditional details logged in {LOG_FILE}')
                 return None
 
         def _generate_psk(rec_payload):
             update_local_state('new_psk', secrets.token_hex(32))
-            update_local_state('psk_cipher_text', 
-                                _encrypt_psk(local_state['config']['SECRETS']['psk'], 
-                                local_state('psk_cipher_text')
-                                ))
+            update_local_state('psk_cipher_text', _encrypt_psk(local_state['config']['psk']))
 
             payload = f'{client_id},psk_refr_new_psk,{local_state["psk_cipher_text"]}'
             _publish(topic, payload)
-
-            verification_event.wait(timeout = 30)
-            if not verification_event.is_set(): 
-                with lock:
-                    del local_state['new_psk'], local_state['psk_cipher_text']
-                _abort_auth('_generate_psk', 'timeout')
+            
+            _await_response()
 
         def _verify_new_psk(rec_payload):
             if rec_payload == local_state['psk_cipher_text']:
                 _payload = f'{client_id},psk_refr_ok,none'
-
-                verification_event.clear()
                 _publish(topic, _payload)
 
-                verification_event.wait(timeout = 30)
-                if not verification_event.is_set(): _abort_auth('_verify_new_psk', 'timeout')
+                _await_response()
         
         def _finalize_new_psk(rec_payload):
-            update_local_state('config', local_state['new_psk'],'SECRETS', 'preshared_key')
-            with lock:
-                del local_state['psk_cipher_text'], local_state['new_psk']
-
+            update_local_state('config', local_state['new_psk'], section = 'psk') # Replacing PSK in local_state with the new psk // config changes are automatically written to file
+            
             _new_expiration_date = datetime.today() + relativedelta(months=3)
             _new_expiration_date_str = _new_expiration_date.strftime('%m/%d/%y')
-            update_local_state('config', _new_expiration_date_str, 'SECRETS', 'expiration_date')
-            
-            write_config_to_file()
 
+            update_local_state('config', _new_expiration_date_str, 'expiration_date')
+
+            with lock:
+                del local_state['psk_cipher_text'], local_state['new_psk'] # Not relying on auto-garbage collection to remove sensitive stuff from memory
+
+            # Restart authentication process using new PSK
             client.disconnect()
             client.reconnect()
 
-    client.on_connect = _on_connect
-    client.on_disconnect = _on_disconnect
-    client.on_message = _on_message
+        def _retrieve_auth_message():
+            return local_state['auth_messages'].get()
 
-def logic_thread():
-    global local_state
+        print('Init')
+        _initial_request()
+        print('    +')
 
-    def _notify_user(_title, _message, _timeout=10_000): # 1,000ms = 1s
-        # Displays a non-blocking, default-ok messagebox
-        """ def create_messagebox():
-            msg_box = Toplevel(root)
-            msg_box.title(_title)
+        if mode == 'refr':
+            if (message := _retrieve_auth_message())[0] == 'hmac_refr_ok':
+                print('Nonce')
+                _generate_nonce()
+                print('    +')
 
-            _label = Label(msg_box, text=_message, padx=20, pady=10)
-            _ok_button = Button(msg_box, text="OK", command=msg_box.destroy)
+            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
+                _generate_psk(message[1])
 
-            _label.pack()
-            _ok_button.pack(pady=5)
-
-            # Set a timer to automatically invoke the OK button after `_timeout` ms
-            msg_box.after(_timeout, _ok_button.invoke)
-
-        root.after(0, create_messagebox) """
-
-    def _report_error(_level, _stop, _alert_user, _admin_desc, _user_desc):
-        ''' Logs and optionally exits the program and / or reports errors to the user '''
-
-        _ts = get_timestamp(True)
-
-        try:
-            with open(LOG_FILE, 'a') as file:
-                file.write(f'{_ts}   {_admin_desc}')
-        
-        except Exception as _e:
-            messagebox.showerror(f'Error', 'An error has occured while attempting to log an error.\nThis may be a result of several issues.\nError: {_e}')
-
-        if not _stop:
-            _exit_message = 'The program will continue to run but user is advised to report this issue.'
-        else:
-            _exit_message = 'The program cannot continue to run and the user is advised to report this issue.'
-
-        if _alert_user:
-            _notify_user(f'Type: {_level}', f'{_user_desc}\n{_exit_message}', None)
-
-    def _create_object(rec_payload = None):
-        return
-    
-    def _edit_object(rec_payload = None):
-        return
-
-    def _check_queue():
-        _actions = {
-            'create_object': _create_object,
-            'edit_object': _edit_object,
-        }
-
-        while not local_state['to_logic_thread'].empty():
-            try:
-                rec_payload = local_state['to_logic_thread'].get()
-                _action = _actions.get(rec_payload[2])
-                _action(rec_payload)
+            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
+                _verify_new_psk(message[1])
             
-            except Exception as e:
-                get_error_message(e, 'to_logic_thread_queue')
-        
-        threading.Timer(1.0, _check_queue).start()
+            if (message := _retrieve_auth_message())[0] == 'psk_verified':
+                _finalize_new_psk(message[1])
 
-        _check_queue()
+        elif mode == 'req':
+            if (message := _retrieve_auth_message())[0] == 'hmac_req_ok':
+                _generate_nonce()
 
-def tk_thread():
+            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
+                _request_hmac()
+            
+            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
+                _compare_hmac(message[1])
+
+    authentication_thread = threading.Thread(target = verify_broker())
+
+    # Begin Authenticating The Broker
+    try:
+        client.connect(broker_ip, broker_port)
+        authentication_thread.start()
+        client.loop()
+    except Exception as e:
+        print(f'Connection Failed: {e}')
+
+def client_tk_thread():
     global local_state
+    global ui_ready_event
+    global client_timer_thread
+    
+    ui_ready_event = threading.Event() # Signals to the rest of the program that they can it with the UI
 
     root = tk.Tk()
     root.title(f'No More Running v{PROG_VER}')
@@ -1544,7 +1558,8 @@ def tk_thread():
     _root_fullscreen = local_state['config']['fullscreen']
     
     if platform.system() == "Linux":
-        _icon_path = os.path.join(IMG_DIR, 'logo.png')
+        _prefix = (f'{local_state["icons"]}_')
+        _icon_path = os.path.join(IMG_DIR, f'{_prefix}logo.png')
         _icon = PhotoImage(file = _icon_path)
         root.iconphoto(True, _icon)
     else:
@@ -1604,16 +1619,6 @@ def tk_thread():
 
     root.resizable(False, False)
 
-    pride_colors = [
-        (228, 3, 3),    # Red
-        (255, 140, 0),  # Orange
-        (255, 237, 0),  # Yellow
-        (0, 128, 38),   # Green
-        (0, 77, 255),   # Blue
-        (117, 7, 135)   # Violet
-    ]
-
-
     def _interpolate_color(color1, color2, factor):
         r1, g1, b1 = color1
         r2, g2, b2 = color2
@@ -1625,6 +1630,16 @@ def tk_thread():
     
     def _animate_background():
         global gradient_step, current_color
+
+        pride_colors = [
+        (228, 3, 3),    # Red
+        (255, 140, 0),  # Orange
+        (255, 237, 0),  # Yellow
+        (0, 128, 38),   # Green
+        (0, 77, 255),   # Blue
+        (117, 7, 135)   # Violet
+        ]
+
         factor = (gradient_step % 100) / 100
         next_color = _interpolate_color(pride_colors[current_color], pride_colors[(current_color + 1) % len(pride_colors)], factor)
         main_content_panel.configure(bg=next_color)
@@ -1635,156 +1650,328 @@ def tk_thread():
         
         main_content_panel.after(60, _animate_background)
 
+    def _time_tracker():
+        _delay = int(local_state['config']['timer_update_delay'])
+        _delay = _delay * 1000
+        for dictionary in [local_state['main_obj_refs'], local_state['sec_obj_refs']]:
+            for _obj in dictionary.values():
+                if _obj.winfo_ismapped(): # Only update currently displayed objects
+                    if hasattr(_obj, 'creation_time'): 
+                        _creation_time = _obj.creation_time
+                        _elapsed_time = (time.time() - _creation_time)
+                        if not _elapsed_time >= 86400:
+                            _formatted_time = time.strftime('%H:%M:%S', time.gmtime(_elapsed_time))
+                            _obj.lbl_timer.configure(text = f'{_formatted_time}')
+                        else:
+                            _obj.lbl_timer.configure(text = '> 24 Hours')
+
+        root.after(_delay, _time_tracker)
+    
+    client_timer_thread = threading.Thread(target = _time_tracker, daemon = True)
+
     if local_state['config']['theme'] == 'pride':
         global gradient_step, current_color
         gradient_step = 0
         current_color = 0
         _animate_background()
-    update_local_state('images', load_images())
+
     load_images()
+
+    client_timer_thread.start()
+    
     root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
+    root.after(500, ui_ready_event.set()) # Ensures the UI is fully displayed and ready before allowing other threads to send requests to the tk thread.
     root.mainloop()
+
+def broker_mqtt_thread():
+    global client, contacts
+
+    contacts = [] # Stores currently connected clients.
+
+    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
+    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
+    broker_ip = 'local_host'
+    broker_port = int(local_state['listener'])
+    
+    def _on_broker_connect():
+        pass
+
+    def _on_broker_disconnect():
+        pass
+
+    def _on_broker_message():
+        pass
+
+    client.on_connect = _on_broker_connect
+    client.on_disconnect = _on_broker_disconnect
+    client.on_message = _on_broker_message
+
+    client.connect(broker_ip, broker_port)
+
 
 def app_start():
     global local_state
-
-    local_state = {
-        'config':get_config(), # Also loads images / creates placeholder images. These are stored in local_state['images']
-        'images': {},
-        'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
-        'sec_obj_refs': {},
-        'mc_panel_ref': None,
-        'sec_panel_ref': None,
-        'set_panel_ref': None,
-        'active_panel_ref': None,
-        'broker_verified': False,
-        'manual_reconnect': False,
-        'side_bg_color': '',
-        'side_fg_color': '',
-        'mc_bg_color': '',
-        'mc_fg_color': '',
-        'accent_bg_color': '',
-        'accent_fg_color': '',
-        'screen_width': None,
-        'screen_height': None,
-        'is_object_active': False,
-        'active_obj_id': None,
-        'req_to_mqtt_thread': Queue(),
-        'req_to_tk_thread': Queue(),
-        'obj_to_tk_thread': Queue(),
-        'req_to_logic_thread': Queue(),
-        'obj_to_logic_thread': Queue(),
-    }
     
-    themes = {
-        'light': {
-            'mc_bg_color': '#E5D9F2',
-            'mc_fg_color': '#000000',
-            'side_bg_color': '#A594F9',
-            'side_fg_color': '#000000',
-            'accent_color': '#A594F9',
-            'accent_fg_color': '#000000',
-            'accent_bg_color': '#A594F9'
-        },
+    local_state = {
+                'platform': platform.system(),
+                'config': get_config(),
+                'images': {},
+                'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
+                'sec_obj_refs': {},
+                'mc_panel_ref': None,
+                'sec_panel_ref': None,
+                'set_panel_ref': None,
+                'active_panel_ref': None,
+                'broker_verified': False,
+                'manual_reconnect': False,
+                'side_bg_color': '',
+                'side_fg_color': '',
+                'mc_bg_color': '',
+                'mc_fg_color': '',
+                'accent_bg_color': '',
+                'accent_fg_color': '',
+                'icons': '',
+                'screen_width': None,
+                'screen_height': None,
+                'is_object_active': False,
+                'active_obj_id': None,
+                'auth_messages': Queue(),
+                'req_to_mqtt_thread': Queue(),
+                'req_to_tk_thread': Queue(),
+                'obj_to_tk_thread': Queue(),
+                'req_to_logic_thread': Queue(),
+                'obj_to_logic_thread': Queue(),
+            }
+    
+    if local_state['config']['mode'] == 'client':
+        themes = {
+            'user_defined':{
+                'mc_bg_color': '',
+                'mc_fg_color': '',
+                'side_bg_color': '',
+                'side_fg_color': '',
+                'accent_fg_color': '',
+                'accent_bg_color': '',
+                'icons': ''
+            },
+            'light': {
+                'mc_bg_color': '#E5D9F2',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#A594F9',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#000000',
+                'accent_bg_color': '#A594F9',
+                'icons': 'dark'
+            },
 
-        'light_blue': {
-            'mc_bg_color': '#89A8B2',
-            'mc_fg_color': '#000000', 
-            'side_bg_color': '#B3C8CF',
-            'side_fg_color': '#000000',
-            'accent_color': '#B3C8CF',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
-        },
+            'light_blue': {
+                'mc_bg_color': '#89A8B2',
+                'mc_fg_color': '#000000', 
+                'side_bg_color': '#B3C8CF',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#000000',
+                'accent_bg_color': '#FFFFFF',
+                'icons': 'dark'
+            },
 
-        'light_green': {
-            'mc_bg_color': '#C2FFC7',
-            'mc_fg_color': '#000000',
-            'side_bg_color': '#9EDF9C',
-            'side_fg_color': '#000000',
-            'accent_color': '#9EDF9C',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
-        },
+            'light_green': {
+                'mc_bg_color': '#C2FFC7',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#9EDF9C',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '',
+                'accent_bg_color': '',
+                'icons': 'dark'
+            },
 
-        'dark': {
-            'mc_bg_color': '#2B2B2B',
-            'mc_fg_color': '#0F0F0F',
-            'side_bg_color': '#3C3C3C',
-            'side_fg_color': '#F0F0F0',
-            'accent_color': '#4F4F4F',
-            'accent_fg_color': '#0F0F0F',
-            'accent_bg_color': '#F0F0F0'
-        },
+            'dark': {
+                'mc_bg_color': '#2B2B2B',
+                'mc_fg_color': '#0F0F0F',
+                'side_bg_color': '#3C3C3C',
+                'side_fg_color': '#F0F0F0',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#C0C0C0',
+                'icons': 'dark'
+            },
 
-        'high_contrast_cyan': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#00BBBB',
-            'side_fg_color': '#000000',
-            'accent_color': '#00BBBB',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
-        },
+            'dark_blue': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#0000BB',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#0000BB',
+                'icons': 'dark'
+            },
 
-        'high_contrast_red': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#BB0000',
-            'side_fg_color': '#FFFFFF',
-            'accent_color': '#BB0000',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
-        },
+            'dark_red': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#BB0000',
+                'side_fg_color': '#FFFFFF',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#BB0000',
+                'icons': 'dark'
+            },
 
-        'high_contrast_purple': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#F0F0F0',
-            'side_bg_color': '#8D00FF',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '',
-            'accent_bg_color': ''
-        },
+            'dark_purple': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#F0F0F0',
+                'side_bg_color': '#8D00FF',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#0F0F0F',
+                'accent_bg_color': '#C0C0C0',
+                'icons': 'dark'
+            },
 
-        'super_dark': {
-            'mc_bg_color': '#000000',
-            'mc_fg_color': '#3F3F3F',
-            'side_bg_color': '#3F3F3F',
-            'side_fg_color': '#FFFFFF',
-            'accent_fg_color': '#FFFFFF',
-            'accent_bg_color': '#3F3F3F'
-        },
+            'super_dark': {
+                'mc_bg_color': '#000000',
+                'mc_fg_color': '#3F3F3F',
+                'side_bg_color': '#3F3F3F',
+                'side_fg_color': '#FFFFFF',
+                'accent_fg_color': '#FFFFFF',
+                'accent_bg_color': '#3F3F3F',
+                'icons': 'dark'
+            },
 
-        'pride': {
-            'mc_bg_color': '#F0F0F0',
-            'mc_fg_color': '#0F0F0F',
-            'side_bg_color': '#F0F0F0',
-            'side_fg_color': '#000000',
-            'accent_fg_color': '#F0F0F0',
-            'accent_bg_color': '#0F0F0F'
+            'h4x0r': {
+                'mc_bg_color': '#BB0000',
+                'mc_fg_color': '#000000',
+                'side_bg_color': '#000000',
+                'side_fg_color': '#BB0000',
+                'accent_bg_color': '#000000',
+                'accent_fg_color': '#BB0000',
+                'icons': 'red'
+            },
+
+            'pride': {
+                'mc_bg_color': '#F0F0F0',
+                'mc_fg_color': '#0F0F0F',
+                'side_bg_color': '#F0F0F0',
+                'side_fg_color': '#000000',
+                'accent_fg_color': '#F0F0F0',
+                'accent_bg_color': '#0F0F0F',
+                'icons': 'dark'
+            }
         }
-    }
 
+        selected_theme = local_state['config']['theme']
+        theme_colors = themes.get(selected_theme, themes['light'])
+        local_state.update(theme_colors)
 
-    selected_theme = local_state['config']['theme']
-    theme_colors = themes.get(selected_theme, themes['light'])
-    local_state.update(theme_colors)
+        client_mqtt_thread_obj = threading.Thread(target = client_mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
+        client_logic_thread_obj = threading.Thread(target = logic_thread, daemon = True) # Handles broker/client auth, heavy computational tasks
 
-    mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True)
-    logic_thread_obj = threading.Thread(target = logic_thread, daemon = True)
+        config_initialized.wait(timeout = 30)
 
-    config_initialized.wait(timeout = 30)
+        if not config_initialized.is_set():
+            with open(LOG_FILE, 'a') as file:
+                _ts = get_timestamp(True)
+                file.write(f'{_ts}  Configuration initialization timeout.')
+        else:
+            client_mqtt_thread_obj.start()
+            client_logic_thread_obj.start()
 
-    if not config_initialized.is_set():
-        with open(LOG_FILE, 'a') as file:
-            _ts = get_timestamp(True)
-            file.write(f'{_ts}  Configuration initialization timeout.')
+        client_tk_thread()
 
-    else:
-        mqtt_thread_obj.start()
-        logic_thread_obj.start()
+        client_mqtt_thread_obj.join()
+        client_logic_thread_obj.join()
+        client_timer_thread.join()
 
-    tk_thread()
+    elif local_state['config']['mode'] == 'broker':
+        def is_broker_running(plat):
+            if plat == 'Linux':
+                try:
+                    result = subprocess.run(
+                        ['systemctl', 'is-active', '--quiet', 'mosquitto'],
+                        check = True
+                    )
+                    return True
+                
+                except subprocess.CalledProcessError:
+                    return False
+            elif plat == 'Windows':
+                try:
+                    result = subprocess.check_output(['sc', 'query', 'mosquitto'], universal_newlines = True
+                                                     )
+                    return True
+                
+                except subprocess.CalledProcessError:
+                    return False
+            else:
+                print(f'{plat} is not compatible with this version of NMR.\nIf you belive you received this message in error, contact your administrator.')
+        
+        def start_broker(plat):
+            _service = "mosquitto"
+
+            try:
+                if plat == 'Linux':
+                    subprocess.run(["sudo", "systemctl", "start", _service], check = True)
+                elif plat == 'Windows':
+                    subprocess.run(["sc", "start", _service], check = True)
+            
+            except subprocess.CalledProcessError as e:
+                print(f'Unable to start broker! Please contact your administrator.')
+
+        def _get_broker_path(plat, service):
+            try:
+                if plat == 'Linux':
+                    result = subprocess.check_output(["which", service], universal_newlines = True)
+                    return result.strip()
+                
+                elif plat == 'Windows':
+                    result = subprocess.check_output(["where", service], universal_newlines = True)
+                    return result.strip()
+            except subprocess.CalledProcessError as e:
+                pass
+
+        def _get_broker_config(broker_path, plat):
+            global SERVICE_DIR, MOSQUITTO_CONF
+            SERVICE_DIR = os.path.dirname(broker_path)
+            MOSQUITTO_CONF = os.path.join(SERVICE_DIR, "mosquitto.conf")
+
+            try:
+                if os.path.exists(MOSQUITTO_CONF):
+                    with open(MOSQUITTO_CONF, 'r') as file:
+                        lines = file.readlines()
+                    
+                    for line in lines:
+                        if line.strip() and not line.strip().startswith('#'):
+                            key_value = line.strip().split(None, 1)
+                            if len(key_value) == 2:
+                                key, value = key_value
+                                update_local_state(key, value)
+                    return
+            except FileNotFoundError:
+                print(f'Unable To Locate Broker Configuration File\nExpected Location: {MOSQUITTO_CONF}')
+
+        plat = local_state['platform']
+        service = 'mosquitto'
+
+        if plat == 'Windows': os.system('cls')
+        if plat == 'Linux': os.system('clear')
+
+        print('***********************************\n* NMR - Broker Mode               *\n* Developed by Daniel Blake, 2024 *\n***********************************')
+        _is_broker_running = is_broker_running(plat)
+
+        if not _is_broker_running: 
+            start_broker(plat)
+            if not _is_broker_running: exit()
+
+        broker_path = _get_broker_path(plat, service)
+        _get_broker_config(broker_path, plat)
+
+        broker_mqtt_thread_obj = threading.Thread(target = broker_mqtt_thread, daemon = True)
+        broker_mqtt_thread_obj.start()
+
+        while True:
+            time.sleep(1)
+
+    elif local_state['config']['mode'] == 'both':
+        print('Both Mode Enabled')
+        
+    elif local_state['config']['mode'] == 'admin':
+        print('Admin Mode Enabled')
 
 if __name__ == '__main__':
     app_start()
