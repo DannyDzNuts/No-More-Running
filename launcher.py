@@ -197,8 +197,29 @@ def install_dependencies():
             
             if not is_mosquitto_in_path():
                 add_to_path_windows(mosquitto_dir)
-                
-    print('    • Detecting Installed Dependancies')
+
+    def _install_tkinter():
+        """Detects and installs tkinter if missing."""
+        try:
+            import tkinter
+        except ImportError:
+            plat = platform.system()
+            if plat == "Linux":
+                try:
+                    subprocess.run(
+                        ["sudo", "apt-get", "install", "-y", "python3-tk"],
+                        check=True,
+                        text=True
+                    )
+                except subprocess.CalledProcessError as e:
+                    print(f"    !! Failed to install tkinter: {e}")
+            elif plat == "Windows":
+                try:
+                    subprocess.run(
+                        ["pip", "install", "tkinter"], check = True, text = True)
+                except subprocess.CalledProcessError as e:
+                    print(f'    !! Error installing tkinter: {e}')
+
     pip_path = (
         os.path.join(VENV_DIR, "Scripts", "pip")  # Windows
         if platform.system() == "Windows"
