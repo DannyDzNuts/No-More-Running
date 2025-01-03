@@ -1258,7 +1258,7 @@ def update_local_state(key, value, section=None, sub_section=None):
             else:
                 local_state[key] = value
 
-def mqtt_thread():
+def client_mqtt_thread():
     '''Handles MQTT client connections, disconnections, authentication, and communications.'''
 
     # Paho-MQTT requires certain callback functions to accept parameters like client, userdata, rc, msg, properties, and flags.
@@ -1281,7 +1281,7 @@ def mqtt_thread():
     except Exception as e:
         report_error(e, 'mqtt_thread', 'mqtt', 'warn', True, True, False, 'broker_port in settings.ini misconfigured as {local_state["config"]["broker_port"]}.')
 
-    def _on_message(client, userdata, msg, properties = None):
+    def _on_client_message(client, userdata, msg, properties = None):
         message = msg.payload.decode()
         print('    Msg Rec')
 
@@ -1320,7 +1320,7 @@ def mqtt_thread():
 
                 local_state['to_logic_thread'].put(_processed_payload)
 
-    def _on_disconnect(client, userdata, rc, properties = None):
+    def _on_client_disconnect(client, userdata, rc, properties = None):
         if not local_state['manual_reconnect']:
             local_state['broker_verified'] = False
 #
@@ -1328,12 +1328,12 @@ def mqtt_thread():
 #         
         local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
     
-    def _on_connect(client, userdata, flags, rc, properties = None):
+    def _on_client_connect(client, userdata, flags, rc, properties = None):
         pass
     
-    client.on_connect = _on_connect
-    client.on_disconnect = _on_disconnect
-    client.on_message = _on_message
+    client.on_connect = _on_client_connect
+    client.on_disconnect = _on_client_disconnect
+    client.on_message = _on_client_message
     
     client.connect(broker_ip, broker_port)
     client.loop_forever()
@@ -1683,6 +1683,32 @@ def client_tk_thread():
     root.after(500, ui_ready_event.set()) # Ensures the UI is fully displayed and ready before allowing other threads to send requests to the tk thread.
     root.mainloop()
 
+def broker_mqtt_thread():
+    global client, contacts
+
+    contacts = [] # Stores currently connected clients.
+
+    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
+    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
+    broker_ip = 'local_host'
+    broker_port = int(local_state['listener'])
+    
+    def _on_broker_connect():
+        pass
+
+    def _on_broker_disconnect():
+        pass
+
+    def _on_broker_message():
+        pass
+
+    client.on_connect = _on_broker_connect
+    client.on_disconnect = _on_broker_disconnect
+    client.on_message = _on_broker_message
+
+    client.connect(broker_ip, broker_port)
+
+
 def app_start():
     global local_state
     
@@ -1833,7 +1859,7 @@ def app_start():
         theme_colors = themes.get(selected_theme, themes['light'])
         local_state.update(theme_colors)
 
-        client_mqtt_thread_obj = threading.Thread(target = mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
+        client_mqtt_thread_obj = threading.Thread(target = client_mqtt_thread, daemon = True) # Contains the networking loop, parses and passes messages, handles connects / disconnects
         client_logic_thread_obj = threading.Thread(target = logic_thread, daemon = True) # Handles broker/client auth, heavy computational tasks
 
         config_initialized.wait(timeout = 30)
@@ -1934,9 +1960,16 @@ def app_start():
 
         broker_path = _get_broker_path(plat, service)
         _get_broker_config(broker_path, plat)
-        
-        print('Starting Broker Management Loop')
 
+        broker_mqtt_thread_obj = threading.Thread(target = broker_mqtt_thread, daemon = True)
+        broker_mqtt_thread_obj.start()
+
+        while True:
+            time.sleep(1)
+
+    elif local_state['config']['mode'] == 'both':
+        print('Both Mode Enabled')
+        
     elif local_state['config']['mode'] == 'admin':
         print('Admin Mode Enabled')
 
