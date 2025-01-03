@@ -229,7 +229,8 @@ def install_dependencies():
     print("    • Installing Missing Dependancies")
     if not is_mosquitto_in_path():_install_broker()
     run_command(f"{pip_path} install -r {REQUIREMENTS_FILE}", silent = True)
-
+    _install_tkinter()
+    
 def ignore_files():
     """Ensures the venv directory is excluded from Git tracking."""
     gitignore_path = os.path.join(PROJECT_DIR, ".gitignore")
