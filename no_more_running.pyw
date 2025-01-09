@@ -47,10 +47,6 @@ import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1' 
 # Hides the pygame support message (makes console cleaner when debuging).
 # I've credited pygame in the README so they're more visible since this program doesn't show a console.
-import os
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1' 
-# Hides the pygame support message (makes console cleaner when debuging).
-# I've credited pygame in the README so they're more visible since this program doesn't show a console.
 
 import base64
 import configparser
@@ -59,7 +55,6 @@ import hashlib
 import json
 import platform
 import secrets
-import subprocess
 import subprocess
 import random
 import time
@@ -100,190 +95,8 @@ pygame.mixer.init()
 
 class ContentPanel(tk.Frame):
     def __init__(self, parent, mode = 'main', *args, **kwargs):
-    def __init__(self, parent, mode = 'main', *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
 
-        self.configure(bg = local_state['mc_bg_color'])
-
-        self.num_columns = 4
-        self.num_rows = 3
-        self.objs_per_page = 12
-        self.grid_tracker = [[None for _ in range(self.num_columns)] for _ in range(self.num_rows)]
-        self.current_main_page = 1
-        self.current_sec_page = 1
-        self.mode = mode
-
-        self.main_objs = list(local_state['main_obj_refs']) if mode == 'main' and local_state['main_obj_refs'] else []
-        self.sec_objs = list(local_state['sec_obj_refs']) if mode == 'sec' and local_state['sec_obj_refs'] else []
-        
-        if mode == 'main':
-            self.total_main_pages = max((len(self.main_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-        elif mode == 'sec':
-            self.total_sec_pages = max((len(self.sec_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-
-        if self.main_objs and self.mode == 'main':
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.sec_objs and self.mode == 'sec':
-            self.populate_grid(self.current_sec_page, self.mode)
-
-        self.grid_columnconfigure(0, weight = 1)
-        self.grid_columnconfigure(1, weight = 1)
-        self.grid_columnconfigure(2, weight = 1)
-        self.grid_columnconfigure(3, weight = 1)
-
-        self.grid_rowconfigure(0, weight = 1)
-        self.grid_rowconfigure(1, weight = 1)
-        self.grid_rowconfigure(2, weight = 1)
-        self.grid_rowconfigure(3, weight = 1)
-
-
-        self.nav_bar = tk.Canvas(self, 
-                                      width = 300, 
-                                      height = 75, 
-                                      bg = local_state['side_bg_color'],
-                                      highlightthickness = 0)
-        
-        _prefix = (f"{local_state['icons']}_")
-
-        try:
-            _img_left_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_left.png')
-            _img_right_arrow_path = os.path.join(IMG_DIR, f'{_prefix}arrow_right.png')
-            _img_first_page_path = os.path.join(IMG_DIR, f'{_prefix}first_page.png')
-            _img_last_page_path = os.path.join(IMG_DIR, f'{_prefix}last_page.png')
-            _img_left_arrow = Image.open(_img_left_arrow_path).resize((56, 56))
-            _img_right_arrow = Image.open(_img_right_arrow_path).resize((56, 56))
-            _img_first_page = Image.open(_img_first_page_path).resize((38, 38))
-            _img_last_page = Image.open(_img_last_page_path).resize((38, 38))
-
-        except Exception as e:
-            # Creates an image placeholder if image above cannot be loaded.
-            _placeholder = Image.new('RGBA', (38, 28), (200, 200, 200, 255))
-            _draw = ImageDraw.Draw(_placeholder)
-            _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
-            _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
-            _img_left_arrow = _placeholder
-            _img_right_arrow = _placeholder
-            _img_first_page = _placeholder
-            _img_last_page = _placeholder
-
-        self.img_left_arrow = ImageTk.PhotoImage(_img_left_arrow)
-        self.img_right_arrow = ImageTk.PhotoImage(_img_right_arrow)
-        self.img_first_page = ImageTk.PhotoImage(_img_first_page)
-        self.img_last_page = ImageTk.PhotoImage(_img_last_page)
-
-        self.cont_img_left_arrow = Label(self.nav_bar, 
-                                         image = self.img_left_arrow, 
-                                         bg = local_state['side_bg_color'], 
-                                         )
-        
-        self.cont_img_right_arrow = Label(self.nav_bar, 
-                                          image = self.img_right_arrow, 
-                                          bg = local_state['side_bg_color'], 
-                                          )
-        
-        self.cont_img_first_page = Label(self.nav_bar, 
-                                         image = self.img_first_page, 
-                                         bg = local_state['side_bg_color'], 
-                                         )
-        
-        self.cont_img_last_page = Label(self.nav_bar, 
-                                        image = self.img_last_page, 
-                                        bg = local_state['side_bg_color'], 
-                                        )
-
-        self.cont_img_left_arrow.bind("<Button-1>", lambda e: self.go_to_previous_page(self.mode))
-        self.cont_img_right_arrow.bind("<Button-1>", lambda e: self.go_to_next_page(self.mode))
-        self.cont_img_first_page.bind("<Button-1>", lambda e: self.go_to_first_page(self.mode))
-        self.cont_img_last_page.bind("<Button-1>", lambda e: self.go_to_last_page(self.mode))
-
-        self.nav_bar.place(relx = 0.84, rely = 0.93)
-        self.cont_img_first_page.place(relx = 0.05, rely = 0.2)
-        self.cont_img_left_arrow.place(relx = 0.28, rely = 0.1)
-        self.cont_img_right_arrow.place(relx = 0.52, rely = 0.1)
-        self.cont_img_last_page.place(relx = 0.8, rely = 0.21)
-
-    def add_object(self, obj, mode):
-        if mode == 'main':
-            self.main_objs.append(obj)
-            self.total_main_pages = max((len(self.main_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-        else:
-            self.sec_objs.append(obj)
-            self.total_sec_pages = max((len(self.sec_objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-
-        self.populate_grid(self.current_main_page, mode)
-
-    def get_page(self, page_number, mode):
-        items = self.main_objs if mode == 'main' else self.sec_objs
-
-        start_index = (page_number - 1) * self.objs_per_page
-        end_index = start_index + self.objs_per_page
-        return items[start_index:end_index]
-
-
-    def clear_grid(self):
-        """Remove objects from the grid without destroying them."""
-        for row in range(self.num_rows):
-            for col in range(self.num_columns):
-                if self.grid_tracker[row][col] is not None:
-                    self.grid_tracker[row][col].grid_forget()  # Hide the widget
-                    self.grid_tracker[row][col] = None
-
-
-    def populate_grid(self, page_number, mode):
-        self.clear_grid()  # Clear the current grid
-
-        items = self.get_page(page_number, mode)
-
-        if not items:  # If no items exist, just return without doing anything
-            return
-
-        for obj in items:
-            row, column = self._find_next_cell(self.grid_tracker)
-            if row is not None and column is not None:
-                obj.grid(row=row, column=column)
-                self.grid_tracker[row][column] = obj
-
-    @property
-    def total_pages(self):
-        objs = self.main_objs if self.mode == 'main' else self.sec_objs
-        total = max((len(objs) + self.objs_per_page - 1) // self.objs_per_page, 1)
-        return total
-
-
-    def go_to_next_page(self, event=None):
-        if self.mode == 'main' and self.current_main_page < self.total_pages:
-            self.current_main_page += 1
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.mode == 'sec' and self.current_sec_page < self.total_pages:
-            self.current_sec_page += 1
-            self.populate_grid(self.current_sec_page, self.mode)
-
-
-    def go_to_previous_page(self, event = None):
-        if self.mode == 'main' and self.current_main_page > 1:
-            self.current_main_page -= 1
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.mode == 'sec' and self.current_sec_page > 1:
-            self.current_sec_page -= 1
-            self.populate_grid(self.current_sec_page, self.mode)
-
-    def go_to_first_page(self, event = None):
-        if self.mode == 'main' and self.current_main_page != 1:
-            self.current_main_page = 1
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.mode == 'sec' and self.current_sec_page != 1:
-            self.current_sec_page = 1
-            self.populate_grid(self.current_sec_page, self.mode)
-
-    def go_to_last_page(self, event = None):
-        if self.mode == 'main' and self.current_main_page != self.total_pages:
-            self.current_main_page = self.total_pages
-            self.populate_grid(self.current_main_page, self.mode)
-        elif self.mode == 'sec' and self.current_sec_page != self.total_pages:
-            self.current_sec_page = self.total_pages
-            self.populate_grid(self.current_sec_page, self.mode)
-
-    def _page_active(self, event = None):
         self.configure(bg = local_state['mc_bg_color'])
 
         self.num_columns = 4
@@ -478,12 +291,7 @@ class ContentPanel(tk.Frame):
         temp_thread = threading.Thread(target = self._debug_gen_mainobjs(), daemon = True)
         temp_thread.start()
         temp_thread.join()
-    def _trigger_gen_mainobj(self):
-        temp_thread = threading.Thread(target = self._debug_gen_mainobjs(), daemon = True)
-        temp_thread.start()
-        temp_thread.join()
 
-    def _debug_gen_mainobjs(self, number_to_generate=1):
     def _debug_gen_mainobjs(self, number_to_generate=1):
         """Generate and add sample objects to the panel for debugging purposes."""
 
@@ -508,13 +316,7 @@ class ContentPanel(tk.Frame):
             main_obj = ContentObject(
                 self,
                 mode='main',
-                self,
-                mode='main',
                 title_val=_title,
-                width=int(self.winfo_width() / 5),
-                height=int(self.winfo_height() / 4),
-                enable_timer=True,
-                subtitle_val=_subtitle_val,
                 width=int(self.winfo_width() / 5),
                 height=int(self.winfo_height() / 4),
                 enable_timer=True,
@@ -541,24 +343,6 @@ class ContentPanel(tk.Frame):
     
     def instantiate_main_obj(self):
         number_to_generate = 5
-            self.main_objs.append(main_obj)
-
-            # Find the next available cell
-            cell = self._find_next_cell(self.grid_tracker)
-            if cell is not None:
-                row, column = cell
-                self.after(10, main_obj.grid(row=row, column=column))
-                self.grid_tracker[row][column] = main_obj
-
-    def _find_next_cell(self, grid_tracker):
-        for row in range(len(grid_tracker)):
-            for column in range(len(grid_tracker[row])):
-                if grid_tracker[row][column] is None:
-                    return row, column
-        return None
-    
-    def instantiate_main_obj(self):
-        number_to_generate = 5
         for _ in range(number_to_generate):
             _title = f"#{random.randint(1000, 9999)}"
             _flag_a = random.choice([True, False])
@@ -572,27 +356,9 @@ class ContentPanel(tk.Frame):
             flag_a_val = _flag_a,
             flag_b_val = _flag_b,
         )
-        # Create a new MainObject instance
-        sec_obj = ContentObject(
-            self,
-            mode = 'sec',
-            title_val = _title,
-            flag_a_val = _flag_a,
-            flag_b_val = _flag_b,
-        )
 
         sec_obj.pack(fill='x', padx=0, pady=1)
-        sec_obj.pack(fill='x', padx=0, pady=1)
 
-    def _debug_gen_secobjs(self):
-        """Generate and add sample objects to the panel for debugging purposes."""
-        object_creation_thread = threading.Thread(target = self.instatiate_main_obj, daemon = True)
-        object_creation_thread.start()
-        object_creation_thread.join()
-
-class ContentObject(tk.Canvas):
-    def __init__(self, parent, mode, title_val, width, height, enable_timer = False, subtitle_val = None, flag_a_val = False, flag_b_val = False):
-        super().__init__(parent, bd = 0, relief = 'flat')
     def _debug_gen_secobjs(self):
         """Generate and add sample objects to the panel for debugging purposes."""
         object_creation_thread = threading.Thread(target = self.instatiate_main_obj, daemon = True)
@@ -608,15 +374,7 @@ class ContentObject(tk.Canvas):
         # Colors (bd = Border)
         self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
         self.active_bg = local_state['accent_bg_color']
-        global local_state
-
-        # Colors (bd = Border)
-        self.inactive_bg = self._brighten_color(local_state['mc_bg_color'], brighten_by = 10)
-        self.active_bg = local_state['accent_bg_color']
         self.fg_color = local_state['mc_fg_color']
-        self.inactive_bd = self._brighten_color(self.inactive_bg, brighten_by = 10)
-        self.active_bd = self._brighten_color(self.inactive_bd, 30)
-
         self.inactive_bd = self._brighten_color(self.inactive_bg, brighten_by = 10)
         self.active_bd = self._brighten_color(self.inactive_bd, 30)
 
@@ -646,40 +404,12 @@ class ContentObject(tk.Canvas):
 
         self.bind("<Button-1>", self._set_selected)
 
-        self.corner_radius = 23
-        self.width = width
-        self.height = height
-
-        if local_state['accent_bg_color'] != '':
-            self.accent_bg_color = local_state['accent_bg_color']
-        else:
-            self.accent_bg_color = '#F0F0F0'
-
-        if local_state['accent_fg_color'] != '':
-            self.accent_fg_color = local_state['accent_fg_color']
-        else:
-            self.accent_fg_color = '#0F0F0F'
-            
-        self.configure(height = self.height, 
-                        width = self.width,
-                        bd = 0, 
-                        highlightthickness = 3,
-                        highlightbackground = self.inactive_bd,
-                        bg = self.inactive_bg
-        )
-
-        self.bind("<Button-1>", self._set_selected)
-
         if mode == 'main':
             self.ref_dict = 'main_obj_refs'
             self.enable_masking = local_state['config']['main_enable_masking']
             self.enable_timer = local_state['config']['main_enable_timer']
-            self.enable_masking = local_state['config']['main_enable_masking']
-            self.enable_timer = local_state['config']['main_enable_timer']
         else:
             self.ref_dict = 'sec_obj_refs'
-            self.enable_masking = local_state['config']['sec_enable_masking']
-            self.enable_timer = local_state['config']['sec_enable_timer']
             self.enable_masking = local_state['config']['sec_enable_masking']
             self.enable_timer = local_state['config']['sec_enable_timer']
         
@@ -697,13 +427,6 @@ class ContentObject(tk.Canvas):
         self.enable_masking = bool(self.enable_masking)
 
         if self.enable_masking:
-
-        if isinstance(self.enable_masking, str): # Python interprets bools weird, let's make sure we get the right value...
-            self.enable_masking = self.enable_masking.lower() in ('true', '1', 'yes', 'y')
-        
-        self.enable_masking = bool(self.enable_masking)
-
-        if self.enable_masking:
             self.is_masked = True
             self.masked_subtitle_val = '*' * (len(self.unmasked_subtitle_val) - 4) + self.unmasked_subtitle_val[-4:]
             _init_subtitle_val = self.masked_subtitle_val
@@ -714,21 +437,14 @@ class ContentObject(tk.Canvas):
 
         self.img_flag_a = local_state['images'][f'{_prefix}_main_flag_a']
         self.img_flag_b = local_state['images'][f'{_prefix}_main_flag_b']
-        _prefix = local_state['icons']
-
-        self.img_flag_a = local_state['images'][f'{_prefix}_main_flag_a']
-        self.img_flag_b = local_state['images'][f'{_prefix}_main_flag_b']
 
         self.lbl_title = tk.Label(self,
                                     text = title_val,
                                     bg = self.inactive_bg,
-                                    bg = self.inactive_bg,
                                     fg = self.fg_color,
-                                    font = ('Arial', 34, 'bold'),
                                     font = ('Arial', 34, 'bold'),
                                     anchor = 'w')
 
-        self.lbl_title.place(relx = 0.5, rely = 0.15, anchor = 'center')
         self.lbl_title.place(relx = 0.5, rely = 0.15, anchor = 'center')
         self.lbl_title.bind("<Button-1>", self._set_selected)
         
@@ -736,20 +452,13 @@ class ContentObject(tk.Canvas):
             self.lbl_subtitle = tk.Label(self,
                                             text = _init_subtitle_val,
                                             bg = self.inactive_bg,
-                                            bg = self.inactive_bg,
                                             fg = self.fg_color,
                                             font = ('Arial', 14),
                                             anchor = 'w')
 
             self.lbl_subtitle.place(relx = 0.5, rely = 0.3, anchor = 'center')
-            self.lbl_subtitle.place(relx = 0.5, rely = 0.3, anchor = 'center')
             self.lbl_subtitle.bind("<Button-1>", self._set_selected)
 
-        if isinstance(self.enable_timer, str):
-            self.enable_timer = self.enable_timer.lower() in ('true', '1', 'yes', 'y')
-        
-        if self.enable_timer:
-            self.creation_time = time.time()
         if isinstance(self.enable_timer, str):
             self.enable_timer = self.enable_timer.lower() in ('true', '1', 'yes', 'y')
         
@@ -759,12 +468,8 @@ class ContentObject(tk.Canvas):
                                         text = '00:00:00',
                                         font = ('Ariel', 20, 'bold'),
                                         bg = self.inactive_bg,
-                                        text = '00:00:00',
-                                        font = ('Ariel', 20, 'bold'),
-                                        bg = self.inactive_bg,
                                         fg = self.fg_color)
 
-            self.lbl_timer.place(relx = 0.5, rely = 0.5, anchor = 'center')
             self.lbl_timer.place(relx = 0.5, rely = 0.5, anchor = 'center')
             self.lbl_timer.bind("<Button-1>", self._set_selected)
         
@@ -788,12 +493,9 @@ class ContentObject(tk.Canvas):
                                         text = _flag_a_name,
                                         font = ('Arial', 16),
                                         bg = self.inactive_bg,
-                                        bg = self.inactive_bg,
                                         fg = self.fg_color)
             
             self.cont_flag_a = tk.Label(self,
-                                        image = self.img_flag_a,
-                                        bg = self.inactive_bg)
                                         image = self.img_flag_a,
                                         bg = self.inactive_bg)
             
@@ -801,18 +503,13 @@ class ContentObject(tk.Canvas):
                                         text = _flag_b_name,
                                         font = ('Arial', 16),
                                         bg = self.inactive_bg,
-                                        bg = self.inactive_bg,
                                         fg = self.fg_color)
             
             self.cont_flag_b = tk.Label(self,
                                             image = self.img_flag_b,
                                             bg = self.inactive_bg)
-                                            image = self.img_flag_b,
-                                            bg = self.inactive_bg)
             
             if flag_a_val:
-                self.lbl_flag_a.place(relx = 0.3, rely = 0.7, anchor = 'center')
-                self.cont_flag_a.place(relx = 0.3, rely = 0.85, anchor = 'center')
                 self.lbl_flag_a.place(relx = 0.3, rely = 0.7, anchor = 'center')
                 self.cont_flag_a.place(relx = 0.3, rely = 0.85, anchor = 'center')
                 self.lbl_flag_a.bind('<Button-1>', self._set_selected)
@@ -821,13 +518,10 @@ class ContentObject(tk.Canvas):
             if flag_b_val:
                 self.lbl_flag_b.place(relx = 0.7, rely = 0.7, anchor = 'center')
                 self.cont_flag_b.place(relx = 0.7, rely = 0.85, anchor = 'center')
-                self.lbl_flag_b.place(relx = 0.7, rely = 0.7, anchor = 'center')
-                self.cont_flag_b.place(relx = 0.7, rely = 0.85, anchor = 'center')
                 self.lbl_flag_b.bind('<Button-1>', self._set_selected)
                 self.cont_flag_b.bind('<Button-1>', self._set_selected)
 
         update_local_state(self.ref_dict, {f'{self.unique_id}': self})
-        self.update_idletasks()
         self.update_idletasks()
     
     def _brighten_color(self, hex_color, brighten_by=10):
@@ -856,7 +550,6 @@ class ContentObject(tk.Canvas):
     def _set_selected(self, _is_selected):
         """Change the appearance of the widget to indicate selection."""
 
-
         _other_object_active = local_state['is_object_active']
 
         if not self.is_selected and _other_object_active == True:
@@ -865,7 +558,6 @@ class ContentObject(tk.Canvas):
             _active_obj.deselect()
         
         _other_object_active = local_state['is_object_active'] # Double checking to ensure something else wasn't selected before we reached this line
-        _other_object_active = local_state['is_object_active'] # Double checking to ensure something else wasn't selected before we reached this line
 
         if not self.is_selected and not _other_object_active:
             self.configure(highlightbackground = self.active_bd, bg = self.active_bg)
@@ -873,11 +565,6 @@ class ContentObject(tk.Canvas):
             if hasattr(self, 'lbl_flag_a'):
                 self.cont_flag_a.configure(bg = self.accent_bg_color)
                 self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
-            self.configure(highlightbackground = self.active_bd, bg = self.active_bg)
-
-            if hasattr(self, 'lbl_flag_a'):
-                self.cont_flag_a.configure(bg = self.accent_bg_color)
-                self.lbl_flag_a.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
 
             if hasattr(self, 'lbl_flag_b'):
                 self.cont_flag_b.configure(bg = self.accent_bg_color)
@@ -889,20 +576,7 @@ class ContentObject(tk.Canvas):
 
             if self.enable_masking:
                 self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
-            if hasattr(self, 'lbl_flag_b'):
-                self.cont_flag_b.configure(bg = self.accent_bg_color)
-                self.lbl_flag_b.configure(bg = self.accent_bg_color, fg = self.accent_fg_color)
-            
-            self.lbl_title.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
-            if hasattr(self, 'lbl_subtitle'): self.lbl_subtitle.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
-            if hasattr(self, 'lbl_timer'): self.lbl_timer.configure(fg = self.accent_fg_color, bg = self.accent_bg_color)
 
-            if self.enable_masking:
-                self.lbl_subtitle.configure(text = self.unmasked_subtitle_val)
-
-            self.is_selected = True
-            update_local_state('is_object_active', True)
-            update_local_state('active_obj_id', self.unique_id)
             self.is_selected = True
             update_local_state('is_object_active', True)
             update_local_state('active_obj_id', self.unique_id)
@@ -913,19 +587,13 @@ class ContentObject(tk.Canvas):
     def deselect(self):
         self.configure(bg = self.inactive_bg, highlightbackground = self.inactive_bd)
         self.lbl_title.configure(bg = self.inactive_bg)
-        self.configure(bg = self.inactive_bg, highlightbackground = self.inactive_bd)
-        self.lbl_title.configure(bg = self.inactive_bg)
 
         if hasattr(self, 'cont_flag_a'):
-            self.cont_flag_a.configure(bg = self.inactive_bg)
-            self.lbl_flag_a.configure(bg = self.inactive_bg)
             self.cont_flag_a.configure(bg = self.inactive_bg)
             self.lbl_flag_a.configure(bg = self.inactive_bg)
             self.lbl_flag_a.configure(fg = self.fg_color)
 
         if hasattr(self, 'cont_flag_b'):
-            self.cont_flag_b.configure(bg = self.inactive_bg)
-            self.lbl_flag_b.configure(bg = self.inactive_bg)
             self.cont_flag_b.configure(bg = self.inactive_bg)
             self.lbl_flag_b.configure(bg = self.inactive_bg)
             self.lbl_flag_b.configure(fg = self.fg_color)
@@ -935,14 +603,11 @@ class ContentObject(tk.Canvas):
         if hasattr(self, 'lbl_subtitle'): 
             self.lbl_subtitle.configure(fg = self.fg_color)
             self.lbl_subtitle.configure(bg = self.inactive_bg)
-            self.lbl_subtitle.configure(bg = self.inactive_bg)
         
         if hasattr(self, 'lbl_timer'): 
             self.lbl_timer.configure(fg = self.fg_color)
             self.lbl_timer.configure(bg = self.inactive_bg)
-            self.lbl_timer.configure(bg = self.inactive_bg)
 
-        if self.enable_masking is True:
         if self.enable_masking is True:
             self.lbl_subtitle.configure(text = self.masked_subtitle_val)
 
@@ -950,8 +615,6 @@ class ContentObject(tk.Canvas):
 
         update_local_state('is_object_active', False)
         update_local_state('active_obj_id', None)
-
-class SettingsContent(tk.Frame):
 
 class SettingsContent(tk.Frame):
     def __init__(self, parent, mode):
@@ -964,8 +627,6 @@ class SettingsContent(tk.Frame):
         self.fg_color = local_state['mc_fg_color']
         
         labels = [
-            ('lbl_section_GUI', 'INTERFACE', _section_font),
-            ('lbl_section_CLIENT', 'ADVANCED', _section_font),
             ('lbl_section_GUI', 'INTERFACE', _section_font),
             ('lbl_section_CLIENT', 'ADVANCED', _section_font),
             ('lbl_client_name', 'Client Name:', _sub_font),
@@ -1008,8 +669,6 @@ class SettingsContent(tk.Frame):
         
         self.lbl_section_GUI.place(rex = 0.05, rely = 0.05)
 
-        self.lbl_section_GUI.place(rex = 0.05, rely = 0.05)
-
 class SideBarButtons(tk.Frame):
     def __init__(self, parent, text, bg_color, width, height = 1, command=None, *args, **kwargs):
         super().__init__(parent, text=text, width=width, height=height, command=command, bg=bg_color, *args, **kwargs)
@@ -1017,7 +676,6 @@ class SideBarButtons(tk.Frame):
 class SideBar(tk.Frame):
     def __init__(self, parent, main_content_panel, min_width=50, max_width=200):
         super().__init__(parent, width=min_width, bg=local_state['side_bg_color'], relief='groove')
-        self.pack_propagate(True)
         self.pack_propagate(True)
 
         self.min_width = min_width
@@ -1033,9 +691,7 @@ class SideBar(tk.Frame):
 
         # Load and resize an image using Pillow for the logo
         _prefix = f"{local_state['icons']}_"
-        _prefix = f"{local_state['icons']}_"
         try:
-            raw_img = Image.open(os.path.join(IMG_DIR, f'{_prefix}logo.png'))
             raw_img = Image.open(os.path.join(IMG_DIR, f'{_prefix}logo.png'))
             ready_img = raw_img.resize((int(min_width - 25), int(min_width - 30)))
             self.image = ImageTk.PhotoImage(ready_img)
@@ -1051,34 +707,15 @@ class SideBar(tk.Frame):
             compound = 'left', 
             font = ('Ariel', 34), 
             fg = self.fg_color
-            image = self.image, 
-            bg = self.bg_color, 
-            text = 'NMR', 
-            compound = 'left', 
-            font = ('Ariel', 34), 
-            fg = self.fg_color
         )
 
         # Create a spacer frame
         self.spacer = tk.Frame(self, width = 50, height = 1, bg = self.bg_color)
 
         _prefix = f"{local_state['icons']}_"
-        self.spacer = tk.Frame(self, width = 50, height = 1, bg = self.bg_color)
-
-        _prefix = f"{local_state['icons']}_"
 
         # Create buttons (with icons and labels for extended mode)
         self.buttons = {
-            'minimize': self._create_sidebar_button('Minimize', f'{_prefix}menu.png', command=self._toggle),
-            f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', f'{_prefix}show_main_objs.png', command = self._show_main_panel),
-            f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', f'{_prefix}show_sec_objs.png', command=self._show_sec_panel),
-            'create': self._create_sidebar_button('Create', f'{_prefix}create.png', command=self._create_object),
-            'modify': self._create_sidebar_button('Modify', f'{_prefix}edit.png', command=self._edit_object),
-            'page': self._create_sidebar_button('Page', f'{_prefix}page.png', command=self._debug_page_object),
-            'remove': self._create_sidebar_button('Remove', f'{_prefix}delete.png', command=self._delete_object),
-            'exit': self._create_sidebar_button('Exit', f'{_prefix}exit.png', command=self._exit_program),
-            'settings': self._create_sidebar_button('Settings', f'{_prefix}settings.png', command=self._show_set_panel),
-            'generate_objects': self._create_sidebar_button('Generate Objs', f'{_prefix}generate.png', command=self.main_content_panel._trigger_gen_mainobj),
             'minimize': self._create_sidebar_button('Minimize', f'{_prefix}menu.png', command=self._toggle),
             f'show_{main_obj_name.capitalize()}_list': self._create_sidebar_button(f'Active {main_obj_name}s', f'{_prefix}show_main_objs.png', command = self._show_main_panel),
             f'show_{sec_obj_name.capitalize()}_list': self._create_sidebar_button(f'{sec_obj_name} List', f'{_prefix}show_sec_objs.png', command=self._show_sec_panel),
@@ -1104,16 +741,8 @@ class SideBar(tk.Frame):
         try:
             icon_path = os.path.join(IMG_DIR, icon_filename)
             icon_image = Image.open(icon_path).resize((42, 42))
-            icon_image = Image.open(icon_path).resize((42, 42))
             icon = ImageTk.PhotoImage(icon_image)
         except FileNotFoundError:
-            icon = tk.PhotoImage(width = 42, height = 42)
-
-        if local_state['config']['theme'] == 'super_dark':
-            _fg_color = local_state['mc_bg_color']
-        else:
-            _fg_color = local_state['side_fg_color']
-
             icon = tk.PhotoImage(width = 42, height = 42)
 
         if local_state['config']['theme'] == 'super_dark':
@@ -1130,19 +759,7 @@ class SideBar(tk.Frame):
             padx = 5,
             pady = 5,
             width = int(self.winfo_width()- 5),
-            text = text,
-            font = ("Arial", 16),
-            image = icon,
-            compound = 'left',
-            padx = 5,
-            pady = 5,
-            width = int(self.winfo_width()- 5),
             command=command,
-            bg = self.bg_color,
-            fg = _fg_color,
-            borderwidth = 0,
-            relief = 'flat',
-            activebackground = self.bg_color
             bg = self.bg_color,
             fg = _fg_color,
             borderwidth = 0,
@@ -1164,7 +781,6 @@ class SideBar(tk.Frame):
                     btn.pack(pady = (30, 8), anchor = 'center')
                 else:
                     btn.pack(pady = (40, 8), anchor='center')
-                    btn.pack(pady = (40, 8), anchor='center')
 
             elif key in ['settings', 'exit']:
                 btn.pack(pady = (8, 8), side = 'bottom', anchor = 'center')
@@ -1179,7 +795,6 @@ class SideBar(tk.Frame):
 
     def _minimize(self):
         self.configure(width = self.current_width)
-        self.configure(width = self.current_width)
         self.is_minimized = True
 
         self.image_container.config(text='')
@@ -1188,12 +803,9 @@ class SideBar(tk.Frame):
         for btn in self.buttons.values():
             btn.config(compound = 'top', text = '')
             btn.pack_configure(anchor = 'center')
-            btn.config(compound = 'top', text = '')
-            btn.pack_configure(anchor = 'center')
 
     def _maximize(self):
         """Maximize the sidebar (show icons with labels)."""
-        self.configure(width = self.max_width)
         self.configure(width = self.max_width)
         self.is_minimized = False
 
@@ -1201,7 +813,6 @@ class SideBar(tk.Frame):
         # Update Sidebar Buttons To Show Icons + Text
         for key, btn in self.buttons.items():
             _label_text = key.replace('_', ' ').title()
-            btn.config(compound = 'left', text = _label_text)
             btn.config(compound = 'left', text = _label_text)
             btn.pack_configure(anchor='w')
 
@@ -1218,16 +829,11 @@ class SideBar(tk.Frame):
             self.main_content_panel.generate_debug_objects()
 
     def _show_main_panel(self):
-    def _show_main_panel(self):
         """Switch to the main content panel."""
         _main_panel = local_state['mc_panel_ref']
         _active_panel = local_state['active_panel_ref']
-        _active_panel = local_state['active_panel_ref']
 
         _active_panel.grid_remove()
-        _active_panel.grid_remove()
-
-        update_local_state('active_panel_ref', _main_panel)
 
         update_local_state('active_panel_ref', _main_panel)
 
@@ -1235,32 +841,16 @@ class SideBar(tk.Frame):
         _main_panel.lift()
 
     def _show_sec_panel(self):
-    def _show_sec_panel(self):
         """Switch to the sec content panel."""
-        _active_panel = local_state['active_panel_ref']
         _active_panel = local_state['active_panel_ref']
         _sec_panel = local_state['sec_panel_ref']
 
         _active_panel.grid_remove()
-        _active_panel.grid_remove()
-
-        update_local_state('active_panel_ref', _sec_panel)
 
         update_local_state('active_panel_ref', _sec_panel)
 
         _sec_panel.grid()
         _sec_panel.lift()
-    
-    def _show_set_panel(self):
-        _set_panel = local_state['set_panel_ref']
-        _active_panel = local_state['active_panel_ref']
-
-        _active_panel.grid_remove()
-
-        update_local_state('active_panel_ref', _set_panel)
-
-        _set_panel.grid()
-        _set_panel.lift()
     
     def _show_set_panel(self):
         _set_panel = local_state['set_panel_ref']
@@ -1279,80 +869,6 @@ class SideBar(tk.Frame):
     def _edit_object(self):
         pass
 
-    def _debug_page_object(self):
-        # Get the root window from the parent
-        root = self.winfo_toplevel()
-        _requestor = 'Debug'
-        _active_obj_id = local_state['active_obj_id']
-        _active_obj_id = str(_active_obj_id)
-
-        if _active_obj_id in local_state['main_obj_refs']:
-            _obj = local_state['main_obj_refs'][_active_obj_id]
-        elif _active_obj_id in local_state['sec_obj_refs']:
-            _obj = local_state['sec_obj_refs'][_active_obj_id]
-        else:
-            return   
-
-        # Create a semi-transparent full-screen overlay
-        overlay = tk.Frame(root, bg = _obj.inactive_bg)
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        overlay.tkraise()  # Ensure the overlay is above all other widgets
-
-        # Add object details
-        obj_name = _obj.lbl_title.cget("text")
-        obj_reference_name = local_state["config"]["main_object_name"]
-
-        # Add a label to display the message
-        message_label = tk.Label(
-            overlay,
-            text=f"Page received from {_requestor}\n\n{obj_reference_name}: {obj_name}",
-            font=("Arial", 48),
-            bg = _obj.inactive_bg,
-            fg = _obj.fg_color,
-        )
-        
-        message_label.place(relx=0.5, rely=0.4, anchor="center")
-
-        # Event for sound playback control
-        sound_event = threading.Event()
-
-        # Dismiss button functionality
-        def dismiss():
-            sound_event.set()
-            overlay.destroy()
-
-        # Add a dismiss button
-        dismiss_button = tk.Button(
-            overlay,
-            text="Dismiss",
-            bg="#333333",
-            fg="#FFFFFF",
-            font=("Arial", 36),
-            command=dismiss,
-        )
-
-        dismiss_button.place(relx=0.5, rely=0.65, anchor="center")
-
-        # Function to play notification sound
-        def play_sound():
-            sound_path = os.path.join(RESOURCES_DIR, "notify.wav")
-            if os.path.exists(sound_path):
-                iteration = 0
-                while not sound_event.is_set():
-                    if iteration >= 3:  # Play sound up to 3 times
-                        break
-                    try:
-                        sound = pygame.mixer.Sound(sound_path)
-                        sound.play()
-                        time.sleep(sound.get_length())
-                        time.sleep(10)  # Delay between plays
-                    except Exception as e:
-                        break
-                    iteration += 1
-
-        # Start the sound thread
-        sound_thread = threading.Thread(target=play_sound, daemon=True)
-        sound_thread.start()
     def _debug_page_object(self):
         # Get the root window from the parent
         root = self.winfo_toplevel()
@@ -1478,59 +994,12 @@ class StatusPanel(tk.Frame):
         _frm_spacer.grid(row = 0, column = 2)
         self.lbl_client_info.grid(row = 0, column = 3, sticky = 'ne')
 
-class StatusPanel(tk.Frame):
-    def __init__(self, parent, height, width, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
-
-        self.pack_propagate(False)
-        self.configure(bg = local_state['side_bg_color'], height = height, width = width)
-        
-        if local_state['config']['theme'] == 'super_dark':
-            _fg_color = local_state['mc_bg_color']
-        else:
-            _fg_color = local_state['side_fg_color']
-        
-        _bg_color = local_state['side_bg_color']
-
-        _lbl_connection_title = Label(self, text = 'Connection Status:', 
-                                    font = ('Arial', 28), 
-                                    fg = _fg_color, 
-                                    bg = _bg_color)
-        
-        self.lbl_connection_state = Label(self, text = 'Not Connected',
-                                    font = ('Arial', 28),
-                                    fg = _fg_color,
-                                    bg = _bg_color)
-        
-        _frm_spacer = tk.Frame(self,
-                               width = int(width / 4), 
-                               bg = _bg_color)
-
-        _client_info_text = (f"{local_state['config']['client_name']} @ {local_state['config']['client_position']}")
-        self.lbl_client_info = tk.Label(self, text = _client_info_text,
-                                     font = ('Arial', 28),
-                                     fg = _fg_color,
-                                     bg = _bg_color)
-        
-        self.grid_columnconfigure(0, weight = 0)
-        self.grid_columnconfigure(1, weight = 1)
-        self.grid_columnconfigure(2, weight = 1)
-        self.grid_columnconfigure(3, weight = 1)
-
-        _lbl_connection_title.grid(row = 0, column = 0, sticky = 'ne')
-        self.lbl_connection_state.grid(row = 0, column = 1, sticky = 'nw')
-        _frm_spacer.grid(row = 0, column = 2)
-        self.lbl_client_info.grid(row = 0, column = 3, sticky = 'ne')
-
-def get_timestamp(include_date = False):
-    if include_date:
 def get_timestamp(include_date = False):
     if include_date:
         return time.strftime('%m/%d/%y @ %H:%M:%S')
     else:
         return time.strftime('%H:%M:%S')
     
-def get_error_message(err, catagory = 'general'):
 def get_error_message(err, catagory = 'general'):
     _error_messages = {
         'configuration': {FileNotFoundError: lambda e: f'No config file was detected and one could not be created.\nExpected File Location: {e}',
@@ -1554,49 +1023,11 @@ def get_error_message(err, catagory = 'general'):
     }
     
     _error_catagory = _error_messages.get(catagory)
-    _error_catagory = _error_messages.get(catagory)
     if _error_catagory: 
-        _message_function = _error_messages.get(type(err))
-        if _message_function: return _message_function(err)
         _message_function = _error_messages.get(type(err))
         if _message_function: return _message_function(err)
     
     return None
-
-def report_error(error, function, catagory = 'general', err_level = 'warn', interrupt_user = False, write_to_disk = False, stop_program = False, custom_message = ''):
-    _admin_message = (f'[{get_timestamp(include_date = True)}]    Level: {err_level}    Function: {function}    Error: {error}\n')
-    write_failure = False
-
-    def show_interrupt(): # Sends request to tk thread to notify user of issue
-        ui_ready_event.wait()
-        local_state['req_to_tk_thread'].put(('interrupt_user', _user_message, stop_program))
-        
-        if write_failure: # Hijacks the event to ensure users have time to write down errors if error cannot be written to disk
-            ui_ready_event.clear()
-            ui_ready_event.wait()
-
-        return
-    
-    if not custom_message == '': # Custom messages override default messages
-        _user_message = custom_message
-    else:
-        get_error_message(error, catagory)
-            
-    if write_to_disk: # Tries to write to disk, on failure alerts user for manual reporting
-        try:
-            with open(LOG_FILE, 'a') as file:
-                file.write(_admin_message)
-        except:
-            _user_message = 'An error has occured but was not able to be logged.\nPlease write this down and give it to your administrator:\n{_admin_message}'
-            interrupt_user = True
-            write_failure = True
-            
-    if interrupt_user:
-        show_interrupt()
-    
-    if stop_program:
-        exit(0)
-        
 
 def report_error(error, function, catagory = 'general', err_level = 'warn', interrupt_user = False, write_to_disk = False, stop_program = False, custom_message = ''):
     _admin_message = (f'[{get_timestamp(include_date = True)}]    Level: {err_level}    Function: {function}    Error: {error}\n')
@@ -1701,20 +1132,6 @@ def write_config_to_file(parser = None):
                     write_to_disk = True, 
                     stop_program = False)
         
-        function = 'write_config_to_file'
-        error = e
-        level = 'crit'
-        catagory = 'disk'
-        
-        
-        report_error(error, 
-                    function, 
-                    catagory = catagory, 
-                    err_level = level, 
-                    interrupt_user = True, 
-                    write_to_disk = True, 
-                    stop_program = False)
-        
 def get_config():
     ''' Retrieves stored configuration or creates a new config file / loads defaults
         if no config file is found / accessible '''
@@ -1749,24 +1166,6 @@ def get_config():
             
     config = {'mode': parser.get('OPERATION', 'mode', fallback = 'client'),
             'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
-            error = e
-            function = 'get_config'
-            catagory = 'disk'
-            level = 'crit'
-            interrupt = True
-            write = True
-            stop = True
-            
-            report_error(error,
-                         function,
-                         catagory,
-                         level,
-                         interrupt,
-                         write,
-                         stop)
-            
-    config = {'mode': parser.get('OPERATION', 'mode', fallback = 'client'),
-            'fullscreen': parser.getboolean('GUI', 'fullscreen', fallback = True),
             'vkeyboard': parser.getboolean('GUI', 'vkeyboard', fallback = True),
             'theme': parser.get('GUI', 'theme', fallback = 'dark'),
             'main_object_name': parser.get('GUI', 'main_object_name', fallback = 'Order'),
@@ -1776,15 +1175,10 @@ def get_config():
             'main_obj_flag_b_name': parser.get('GUI', 'main_obj_flag_b_name', fallback = 'Milkshake'),
             'main_enable_masking': parser.getboolean('GUI', 'main_enable_masking', fallback = True),
             'main_enable_timer': parser.getboolean('GUI', 'main_enable_timer', fallback = True),
-            'main_enable_masking': parser.getboolean('GUI', 'main_enable_masking', fallback = True),
-            'main_enable_timer': parser.getboolean('GUI', 'main_enable_timer', fallback = True),
             'sec_object_name': parser.get('GUI', 'sec_object_name', fallback = '86'),
             'sec_flag_a_name': parser.get('GUI', 'sec_flag_a_name', fallback = 'Limited'),
             'sec_flag_b_name': parser.get('GUI', 'sec_flag_b_name', fallback = 'O/S'),
             'sec_flags_enabled': parser.get('GUI', 'sec_flags_enabled', fallback = False),
-            'sec_enable_masking': parser.getboolean('GUI', 'secondary_enable_masking', fallback = True),
-            'sec_enable_timer': parser.getboolean('GUI', 'secondary_enable_timer', fallback = True),
-            'timer_update_delay': parser.get('GUI', 'timer_update_delay', fallback = '5'),
             'sec_enable_masking': parser.getboolean('GUI', 'secondary_enable_masking', fallback = True),
             'sec_enable_timer': parser.getboolean('GUI', 'secondary_enable_timer', fallback = True),
             'timer_update_delay': parser.get('GUI', 'timer_update_delay', fallback = '5'),
@@ -1801,7 +1195,6 @@ def get_config():
             'backup_psk': parser.get('SECRETS', 'client_backup_psk', fallback = 'EXAMPLEb712e17c9614e2871657d5eab21faba79a59f37000cf3afac3f9486ec'),
             'expiration_date': parser.get('SECRETS', 'client_psk_exp_date', fallback = '01/01/01')
             }
-
 
     if config: 
         config_initialized.set()
@@ -1842,44 +1235,7 @@ def load_images():
         update_local_state('images', {_img_name: _img_obj})
 
 # Used to safely update program state - queues are updated directly, config changes are written to disk
-#Pre-load images to reduce object creation times.
-def load_images(): 
-    def _generate_placeholder_img():
-        _placeholder = Image.new('RGBA', (38, 38), (200, 200, 200, 255))
-        _draw = ImageDraw.Draw(_placeholder)
-        _draw.line((0, 0, 38, 38), fill = 'red', width = 2)
-        _draw.line((0, 38, 38, 0), fill = 'red', width = 2)
-
-        return _placeholder
-    
-    _imgs = os.listdir(IMG_DIR)
-    _img_list = [item for item in _imgs]
-    _img_list.remove('logo.ico')
-
-    for item in _img_list:
-        try:
-            _path = os.path.join(IMG_DIR, item)
-            _img = Image.open(_path).resize((38, 38))
-        except Exception as e:
-            _img = _generate_placeholder_img()
-            
-            error = e
-            function = 'load_images'
-            catagory = 'disk'
-            level = 'warn'
-            interrupt = False
-            write = True
-            
-            report_error(error, function, catagory, level, interrupt, write)
-
-        _img_obj = ImageTk.PhotoImage(_img)
-        _img_name = os.path.splitext(item)[0]
-        update_local_state('images', {_img_name: _img_obj})
-
-# Used to safely update program state - queues are updated directly, config changes are written to disk
 def update_local_state(key, value, section=None, sub_section=None):
-    global local_state
-
     global local_state
 
     with lock:
@@ -1890,11 +1246,6 @@ def update_local_state(key, value, section=None, sub_section=None):
             if section not in local_state[key]:
                 local_state[key][section] = {}
 
-            if sub_section is None:
-                local_state[key][section] = value
-            else:
-                local_state[key][section][sub_section] = value
-            
             if sub_section is None:
                 local_state[key][section] = value
             else:
@@ -1958,8 +1309,6 @@ def client_mqtt_thread():
     # Each communication has a 30-second timeout for both sides.
     global local_state, verification_event, client
 
-    global local_state, verification_event, client
-
     verification_event = threading.Event()
     client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
     client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
@@ -1974,13 +1323,9 @@ def client_mqtt_thread():
         global is_verifying_broker, retry_delay
         message = msg.payload.decode()
         print('    Msg Rec')
-        print('    Msg Rec')
 
         if is_verifying_broker:
             # Expected format: client_id,response_type,payload
-            try:
-                _client_id, _response_type, rec_payload = message.split(',')
-                print(_client_id, _response_type, rec_payload)
             try:
                 _client_id, _response_type, rec_payload = message.split(',')
                 print(_client_id, _response_type, rec_payload)
@@ -2045,11 +1390,7 @@ def client_logic_thread():
         ''' Handles broker-to-client authentication '''
         global is_verifying_broker, mode
 
-        global is_verifying_broker, mode
-
         _nonce = None
-        is_verifying_broker = True # Ensures that only the authentication channel is subscribed to until broker auth is completed
-        mode = None # Tracks whether we're authing the broker or refreshing psk
         is_verifying_broker = True # Ensures that only the authentication channel is subscribed to until broker auth is completed
         mode = None # Tracks whether we're authing the broker or refreshing psk
 
@@ -2079,7 +1420,6 @@ def client_logic_thread():
         def _generate_nonce(rec_payload):
             _nonce = secrets.token_hex(length = 32)
 
-
             payload = f'{client_id},gen_nonce,{_nonce}'
             publish(topic, payload)
             await_response(payload)
@@ -2091,7 +1431,6 @@ def client_logic_thread():
             await_response(payload)
         
         def _compare_hmac(rec_payload):
-            _encoded_psk = local_state['config']['preshared_key'].encode()
             _encoded_psk = local_state['config']['preshared_key'].encode()
             _expected_hmac = hmac.new(_encoded_psk, _nonce, hashlib.sha256).hexdigest()
             del _nonce
@@ -2113,7 +1452,6 @@ def client_logic_thread():
         def _set_auth(rec_payload):
             if rec_payload == 'hmac_ok':
                 local_state['broker_verified'] = True
-                local_state['broker_verified'] = True
 
             else:
                 payload = f'{client_id},hmac_auth_req_final','no_response'
@@ -2129,7 +1467,6 @@ def client_logic_thread():
 
             if len(_old_psk) == 32 and len(_new_psk) == 32:
                 _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend = default_backend())
-                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend = default_backend())
                 _encryptor = _cipher.encryptor()
 
                 _padder = padding.PKCS7(algorithms.AES.block_size).padder()
@@ -2141,12 +1478,10 @@ def client_logic_thread():
 
             else:
                 report_error('programming', '_encrypt_psk', 'mqtt', 'crit', True, True, True, f'Programming Error. Unable to encrypt new PSK.\nFor your safety, the program has been stopped. Please notify your administrator.\n\nAdditional details logged in {LOG_FILE}')
-                report_error('programming', '_encrypt_psk', 'mqtt', 'crit', True, True, True, f'Programming Error. Unable to encrypt new PSK.\nFor your safety, the program has been stopped. Please notify your administrator.\n\nAdditional details logged in {LOG_FILE}')
                 return None
 
         def _generate_psk(rec_payload):
             update_local_state('new_psk', secrets.token_hex(32))
-            update_local_state('psk_cipher_text', _encrypt_psk(local_state['config']['psk']))
             update_local_state('psk_cipher_text', _encrypt_psk(local_state['config']['psk']))
 
             payload = f'{client_id},psk_refr_new_psk,{local_state["psk_cipher_text"]}'
@@ -2164,19 +1499,11 @@ def client_logic_thread():
         def _finalize_new_psk(rec_payload):
             update_local_state('config', local_state['new_psk'], section = 'psk') # Replacing PSK in local_state with the new psk // config changes are automatically written to file
             
-            update_local_state('config', local_state['new_psk'], section = 'psk') # Replacing PSK in local_state with the new psk // config changes are automatically written to file
-            
             _new_expiration_date = datetime.today() + relativedelta(months=3)
             _new_expiration_date_str = _new_expiration_date.strftime('%m/%d/%y')
 
             update_local_state('config', _new_expiration_date_str, 'expiration_date')
 
-            update_local_state('config', _new_expiration_date_str, 'expiration_date')
-
-            with lock:
-                del local_state['psk_cipher_text'], local_state['new_psk'] # Not relying on auto-garbage collection to remove sensitive stuff from memory
-
-            # Restart authentication process using new PSK
             with lock:
                 del local_state['psk_cipher_text'], local_state['new_psk'] # Not relying on auto-garbage collection to remove sensitive stuff from memory
 
@@ -2225,12 +1552,7 @@ def client_logic_thread():
         print(f'Connection Failed: {e}')
 
 def client_tk_thread():
-def client_tk_thread():
     global local_state
-    global ui_ready_event
-    global client_timer_thread
-    
-    ui_ready_event = threading.Event() # Signals to the rest of the program that they can it with the UI
     global ui_ready_event
     global client_timer_thread
     
@@ -2249,8 +1571,6 @@ def client_tk_thread():
     _root_fullscreen = local_state['config']['fullscreen']
     
     if platform.system() == "Linux":
-        _prefix = (f'{local_state["icons"]}_')
-        _icon_path = os.path.join(IMG_DIR, f'{_prefix}logo.png')
         _prefix = (f'{local_state["icons"]}_')
         _icon_path = os.path.join(IMG_DIR, f'{_prefix}logo.png')
         _icon = PhotoImage(file = _icon_path)
@@ -2289,11 +1609,7 @@ def client_tk_thread():
     main_content_panel = ContentPanel(root)
     sec_content_panel = ContentPanel(root, mode = 'sec')
     settings_content_panel = ContentPanel(root)
-    sec_content_panel = ContentPanel(root, mode = 'sec')
-    settings_content_panel = ContentPanel(root)
 
-    sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
-    status_panel = StatusPanel(root, height = (root.winfo_height() / 18), width = int(root.winfo_width() - sidebar.winfo_width()))
     sidebar = SideBar(root, main_content_panel = main_content_panel, min_width = min_sidebar_width, max_width = max_sidebar_width)
     status_panel = StatusPanel(root, height = (root.winfo_height() / 18), width = int(root.winfo_width() - sidebar.winfo_width()))
     root.grid_rowconfigure(0, weight=1)
@@ -2307,21 +1623,11 @@ def client_tk_thread():
     settings_content_panel.grid(row = 0, column = 1, stick = 'nsew')
     sec_content_panel.grid_remove()
     settings_content_panel.grid_remove()
-    main_content_panel.grid(row = 0, column = 1, stick = 'nsew')
-    sidebar.grid(row = 0, rowspan = 2, column = 0, sticky="ns")
-    status_panel.grid(row = 1, column = 1, sticky = 'ew')
 
-    sec_content_panel.grid(row = 0, column = 1, stick = 'nsew')
-    settings_content_panel.grid(row = 0, column = 1, stick = 'nsew')
-    sec_content_panel.grid_remove()
-    settings_content_panel.grid_remove()
-
-    update_local_state('active_panel_ref', main_content_panel)
     update_local_state('active_panel_ref', main_content_panel)
 
     update_local_state('mc_panel_ref', main_content_panel)
     update_local_state('sec_panel_ref', sec_content_panel)
-    update_local_state('set_panel_ref', settings_content_panel)
     update_local_state('set_panel_ref', settings_content_panel)
 
     root.resizable(False, False)
@@ -2347,45 +1653,14 @@ def client_tk_thread():
         (117, 7, 135)   # Violet
         ]
 
-
-        pride_colors = [
-        (228, 3, 3),    # Red
-        (255, 140, 0),  # Orange
-        (255, 237, 0),  # Yellow
-        (0, 128, 38),   # Green
-        (0, 77, 255),   # Blue
-        (117, 7, 135)   # Violet
-        ]
-
         factor = (gradient_step % 100) / 100
         next_color = _interpolate_color(pride_colors[current_color], pride_colors[(current_color + 1) % len(pride_colors)], factor)
-        main_content_panel.configure(bg=next_color)
         main_content_panel.configure(bg=next_color)
 
         gradient_step += 1
         if gradient_step % 100 == 0:
             current_color = (current_color + 1) % len(pride_colors)
         
-        main_content_panel.after(60, _animate_background)
-
-    def _time_tracker():
-        _delay = int(local_state['config']['timer_update_delay'])
-        _delay = _delay * 1000
-        for dictionary in [local_state['main_obj_refs'], local_state['sec_obj_refs']]:
-            for _obj in dictionary.values():
-                if _obj.winfo_ismapped(): # Only update currently displayed objects
-                    if hasattr(_obj, 'creation_time'): 
-                        _creation_time = _obj.creation_time
-                        _elapsed_time = (time.time() - _creation_time)
-                        if not _elapsed_time >= 86400:
-                            _formatted_time = time.strftime('%H:%M:%S', time.gmtime(_elapsed_time))
-                            _obj.lbl_timer.configure(text = f'{_formatted_time}')
-                        else:
-                            _obj.lbl_timer.configure(text = '> 24 Hours')
-
-        root.after(_delay, _time_tracker)
-    
-    client_timer_thread = threading.Thread(target = _time_tracker, daemon = True)
         main_content_panel.after(60, _animate_background)
 
     def _time_tracker():
@@ -2413,12 +1688,6 @@ def client_tk_thread():
         current_color = 0
         _animate_background()
 
-    load_images()
-
-    client_timer_thread.start()
-    
-    root.update_idletasks() # Sidebar isn't drawn on screen w/o this. Forces redraw.
-    root.after(500, ui_ready_event.set()) # Ensures the UI is fully displayed and ready before allowing other threads to send requests to the tk thread.
     load_images()
 
     client_timer_thread.start()
@@ -2607,7 +1876,6 @@ def broker_mqtt_thread():
 def app_start():
     global local_state
     
-    
     local_state = {
                 'platform': platform.system(),
                 'config': get_config(),
@@ -2638,35 +1906,6 @@ def app_start():
                 'req_to_logic_thread': Queue(),
                 'obj_to_logic_thread': Queue(),
             }
-                'platform': platform.system(),
-                'config': get_config(),
-                'images': {},
-                'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
-                'sec_obj_refs': {},
-                'mc_panel_ref': None,
-                'sec_panel_ref': None,
-                'set_panel_ref': None,
-                'active_panel_ref': None,
-                'broker_verified': False,
-                'manual_reconnect': False,
-                'side_bg_color': '',
-                'side_fg_color': '',
-                'mc_bg_color': '',
-                'mc_fg_color': '',
-                'accent_bg_color': '',
-                'accent_fg_color': '',
-                'icons': '',
-                'screen_width': None,
-                'screen_height': None,
-                'is_object_active': False,
-                'active_obj_id': None,
-                'auth_messages': Queue(),
-                'req_to_mqtt_thread': Queue(),
-                'req_to_tk_thread': Queue(),
-                'obj_to_tk_thread': Queue(),
-                'req_to_logic_thread': Queue(),
-                'obj_to_logic_thread': Queue(),
-            }
     
     if local_state['config']['mode'] == 'client':
         themes = {
@@ -2688,26 +1927,6 @@ def app_start():
                 'accent_bg_color': '#A594F9',
                 'icons': 'dark'
             },
-    if local_state['config']['mode'] == 'client':
-        themes = {
-            'user_defined':{
-                'mc_bg_color': '',
-                'mc_fg_color': '',
-                'side_bg_color': '',
-                'side_fg_color': '',
-                'accent_fg_color': '',
-                'accent_bg_color': '',
-                'icons': ''
-            },
-            'light': {
-                'mc_bg_color': '#E5D9F2',
-                'mc_fg_color': '#000000',
-                'side_bg_color': '#A594F9',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '#000000',
-                'accent_bg_color': '#A594F9',
-                'icons': 'dark'
-            },
 
             'light_blue': {
                 'mc_bg_color': '#89A8B2',
@@ -2718,25 +1937,7 @@ def app_start():
                 'accent_bg_color': '#FFFFFF',
                 'icons': 'dark'
             },
-            'light_blue': {
-                'mc_bg_color': '#89A8B2',
-                'mc_fg_color': '#000000', 
-                'side_bg_color': '#B3C8CF',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '#000000',
-                'accent_bg_color': '#FFFFFF',
-                'icons': 'dark'
-            },
 
-            'light_green': {
-                'mc_bg_color': '#C2FFC7',
-                'mc_fg_color': '#000000',
-                'side_bg_color': '#9EDF9C',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '',
-                'accent_bg_color': '',
-                'icons': 'dark'
-            },
             'light_green': {
                 'mc_bg_color': '#C2FFC7',
                 'mc_fg_color': '#000000',
@@ -2766,35 +1967,7 @@ def app_start():
                 'accent_bg_color': '#0000BB',
                 'icons': 'dark'
             },
-            'dark': {
-                'mc_bg_color': '#2B2B2B',
-                'mc_fg_color': '#0F0F0F',
-                'side_bg_color': '#3C3C3C',
-                'side_fg_color': '#F0F0F0',
-                'accent_fg_color': '#0F0F0F',
-                'accent_bg_color': '#C0C0C0',
-                'icons': 'dark'
-            },
 
-            'dark_blue': {
-                'mc_bg_color': '#000000',
-                'mc_fg_color': '#F0F0F0',
-                'side_bg_color': '#0000BB',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '#0F0F0F',
-                'accent_bg_color': '#0000BB',
-                'icons': 'dark'
-            },
-
-            'dark_red': {
-                'mc_bg_color': '#000000',
-                'mc_fg_color': '#F0F0F0',
-                'side_bg_color': '#BB0000',
-                'side_fg_color': '#FFFFFF',
-                'accent_fg_color': '#0F0F0F',
-                'accent_bg_color': '#BB0000',
-                'icons': 'dark'
-            },
             'dark_red': {
                 'mc_bg_color': '#000000',
                 'mc_fg_color': '#F0F0F0',
@@ -2814,35 +1987,7 @@ def app_start():
                 'accent_bg_color': '#C0C0C0',
                 'icons': 'dark'
             },
-            'dark_purple': {
-                'mc_bg_color': '#000000',
-                'mc_fg_color': '#F0F0F0',
-                'side_bg_color': '#8D00FF',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '#0F0F0F',
-                'accent_bg_color': '#C0C0C0',
-                'icons': 'dark'
-            },
 
-            'super_dark': {
-                'mc_bg_color': '#000000',
-                'mc_fg_color': '#3F3F3F',
-                'side_bg_color': '#3F3F3F',
-                'side_fg_color': '#FFFFFF',
-                'accent_fg_color': '#FFFFFF',
-                'accent_bg_color': '#3F3F3F',
-                'icons': 'dark'
-            },
-
-            'h4x0r': {
-                'mc_bg_color': '#BB0000',
-                'mc_fg_color': '#000000',
-                'side_bg_color': '#000000',
-                'side_fg_color': '#BB0000',
-                'accent_bg_color': '#000000',
-                'accent_fg_color': '#BB0000',
-                'icons': 'red'
-            },
             'super_dark': {
                 'mc_bg_color': '#000000',
                 'mc_fg_color': '#3F3F3F',
@@ -2873,20 +2018,7 @@ def app_start():
                 'icons': 'dark'
             }
         }
-            'pride': {
-                'mc_bg_color': '#F0F0F0',
-                'mc_fg_color': '#0F0F0F',
-                'side_bg_color': '#F0F0F0',
-                'side_fg_color': '#000000',
-                'accent_fg_color': '#F0F0F0',
-                'accent_bg_color': '#0F0F0F',
-                'icons': 'dark'
-            }
-        }
 
-        selected_theme = local_state['config']['theme']
-        theme_colors = themes.get(selected_theme, themes['light'])
-        local_state.update(theme_colors)
         selected_theme = local_state['config']['theme']
         theme_colors = themes.get(selected_theme, themes['light'])
         local_state.update(theme_colors)
