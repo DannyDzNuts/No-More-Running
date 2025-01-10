@@ -307,7 +307,6 @@ def main():
 
     # Activate the environment and run the program
     print("Starting NMR...")
-    time.sleep(30)
     activate_and_launch()
 
 if __name__ == "__main__":
