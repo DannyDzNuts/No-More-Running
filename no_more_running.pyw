@@ -1710,43 +1710,33 @@ def broker_logic_thread():
         mode = None # Tracks whether requesting client is authing via HMAC or refreshing their PSK
 # NEED TO MOVE PSK / HMAC LOGIC TO BROKER_LOGIC_THREAD
 
-def broker_mqtt_thread():
-    global client, contacts
-
-    contacts = [] # Stores currently connected clients.
-    client_loop_thread = threading.Thread(target = _broker_loop_thread, daemon = True)
-    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
-    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
-    broker_ip = 'local_host'
-    broker_port = int(local_state['listener'])
-        
     def get_hardware_secret():
         if platform.system() == 'Windows':
             try:
-                import wmi
+                import _wmi
                 c = wmi.WMI()
                 for board in c.Win32_BaseBoard():
                     return board.SerialNumber.encode()
             except ImportError:
                 raise Exception("WMI package not found. Install it via 'pip install wmi'")
-        
-        elif platform.system() == "Linux":
+            
+        elif platform.system() == 'Linux':
             try:
-                output = subprocess.check_output(["dmidecode", "-s", "system-serial-number"])
+                output = subprocess.check_output(["dmidecode", "-s", "system-serial-nmber"])
                 return output.strip()
             except FileNotFoundError:
-                with open("/proc/cpuinfo", 'r') as f:
+                with open('/proc/cpuinfo', 'r') as f:
                     for line in f:
-                        if line.startswith("Serial"):
-                            return line.split(":")[1].strip().encode()
+                        if line.startwith('Serial'):
+                            return line.split(':')[1].strip().encode()
         
         else:
-            raise Exception('Unsupported platform')
-    
+            raise Exception('Unsupported Platform')
+        
     def derive_key(hardware_secret, salt = None):
         if not salt:
             salt = os.urandom(16)
-        
+
         kdf = PBKDF2HMAC(
             algorithm = SHA256(),
             length = 32,
@@ -1756,10 +1746,10 @@ def broker_mqtt_thread():
         )
 
         return kdf.derive(hardware_secret), salt
-
+    
     def encrypt_psk(psk, key):
         iv = os.urandom(12)
-        cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend = default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.GCMM(iv), backend = default_backend())
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(psk.encode()) + encryptor.finalize()
 
@@ -1786,7 +1776,7 @@ def broker_mqtt_thread():
     def save_client_psks(psks):
         with open(PSK_FILE, 'w') as f:
             json.dump(psks, f, indent = 1)
-    
+
     def add_psk(client_id, psk):
         psks = retrieve_all_psks()
         hardware_secret = get_hardware_secret()
@@ -1820,11 +1810,15 @@ def broker_mqtt_thread():
         except Exception as e:
             report_error(e, '_create_hmac', 'mqtt', 'crit', False, True, False, f'Unable to create HMAC of stored PSK for client: {client_id}')
 
-    def _write_hmac_to_file():
-        pass
+def broker_mqtt_thread():
+    global client, contacts
 
-    def _remove_client_from_db():
-        pass
+    contacts = [] # Stores currently connected clients.
+    client_loop_thread = threading.Thread(target = _broker_loop_thread, daemon = True)
+    client = mqtt.Client(local_state['config']['client_name'], clean_session = True)
+    client.username_pw_set(local_state['config']['client_id'], local_state['config']['client_password'])
+    broker_ip = 'local_host'
+    broker_port = int(local_state['listener'])
     
     def _broker_loop_thread():
         print('Client Loop Start')
