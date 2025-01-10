@@ -1,10 +1,11 @@
-import os
-import sys
-import subprocess
-import platform
-import urllib.request
-import shutil
 import ctypes
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import time
+import urllib.request
 
 # Constants
 REPO_URL = "https://github.com/DannyDzNuts/No-More-Running.git"
@@ -234,7 +235,7 @@ def install_dependencies():
 def ignore_files():
     """Ensures the venv directory is excluded from Git tracking."""
     gitignore_path = os.path.join(PROJECT_DIR, ".gitignore")
-    ignored = ['venv/', 'resources/no_update.txt', 'resources/log.txt']
+    ignored = ['venv/', 'resources/no_update.txt', 'resources/log.txt','resources/psk.json' '.gitignore']
     
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r+") as gitignore:
@@ -242,15 +243,11 @@ def ignore_files():
             for item in ignored:
                 if item not in content:
                     gitignore.write(f'\n{item}')
-                    print(f'    • Now ignoring {item}')
             
     else:
         with open(gitignore_path, "w") as gitignore:
             for item in ignored:
                 gitignore.write(f'\n{item}')
-                print(f'    • Now ignoring {item}')
-
-        print("    √ Created .gitignore\n    √ Now ignoring /venv\n    √ Now ignoring no_update.txt")
 
     # Attempt to untrack the venv directory
     result = subprocess.run("git ls-files --error-unmatch venv", shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
@@ -310,6 +307,7 @@ def main():
 
     # Activate the environment and run the program
     print("Starting NMR...")
+    time.sleep(30)
     activate_and_launch()
 
 if __name__ == "__main__":

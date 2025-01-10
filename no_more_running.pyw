@@ -48,7 +48,6 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 # Hides the pygame support message (makes console cleaner when debuging).
 # I've credited pygame in the README so they're more visible since this program doesn't show a console.
 
-import base64
 import configparser
 import hmac
 import hashlib
@@ -62,6 +61,7 @@ import threading
 import tkinter as tk
 
 from base64 import b64encode, b64decode
+from colorama import Fore, Back, Style
 from math import radians, sin, cos
 from tkinter import Button, Label, Toplevel, PhotoImage, messagebox
 from uuid import uuid4
