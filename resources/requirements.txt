@@ -7,3 +7,4 @@ pycparser==2.22
 pygame==2.6.1
 python-dateutil==2.9.0.post0
 wmctrl==0.5
+wmi==1.5.1
