@@ -1035,7 +1035,7 @@ def report_error(error, function, catagory = 'general', err_level = 'warn', inte
 
     def show_interrupt(): # Sends request to tk thread to notify user of issue
         ui_ready_event.wait()
-        local_state['req_to_tk_thread'].put(('interrupt_user', _user_message, stop_program))
+        local_state['req_to_client_tk_thread'].put(('interrupt_user', _user_message, stop_program))
         
         if write_failure: # Hijacks the event to ensure users have time to write down errors if error cannot be written to disk
             ui_ready_event.clear()
@@ -1294,7 +1294,10 @@ def await_response(topic, retry_payload):
 
         if not retry_count >= 3:
             publish(topic, retry_payload)
-            await_response(retry_payload) 
+            await_response(retry_payload)
+        else:
+            report_error('network retry limit exceeded', 'await_response', 'mqtt', 'warn', False, True, False, f'Unable to send message: {retry_payload}')
+            return
 
 def client_mqtt_thread():
     '''Handles MQTT client connections, disconnections, authentication, and communications.'''
@@ -1367,7 +1370,7 @@ def client_mqtt_thread():
 #
 # UPDATE QUEUE PUSH
 #         
-        local_state['req_to_logic_thread'].put(('mqtt_update','broker','diconnected'))
+        local_state['req_to_client_logic_thread'].put(('mqtt_update','broker','diconnected'))
     
     def _on_client_connect(client, userdata, flags, rc, properties = None):
         pass
@@ -1399,86 +1402,110 @@ def client_logic_thread():
         
         client_id = local_state['config']['client_id']
 
-        def initial_request():
-            ''' Requests Broker Authentication or PSK Refresh if PSK is expired '''
+        def is_psk_expired():
+            ''' Determines if PSK is expired'''
 
-            psk_exp_obj = datetime.strptime(local_state['config']['expiration_date'], '%m/%d/%y').date()
+            psk_expiration= datetime.strptime(local_state['config']['expiration_date'], '%m/%d/%y').date()
             today = datetime.today()
 
-            # Determines the type of request to send - If PSK is expired, requests a refresh using backup PSK
-            if psk_exp_obj >= today.date():
-                request_type = f'hmac_auth_req' # Normal Auth Request
+            if psk_expiration > today.date():
+                return False
+            elif psk_expiration <= today.date():
+                return True
+            else:
+                raise Exception('Unable to determine if PSK is expired. Please contact your administrator')
+
+        def generate_initial_req():
+            ''' Initiates appropriate initial request for authentication or PSK refresh with broker'''
+            global mode
+
+            nonce = secrets.token_hex(length = 32)
+
+            if not is_psk_expired():
                 mode = 'auth'
-            elif psk_exp_obj < today.date():
-                request_type = f'hmac_refr_req' # Refresh Request
+                request = 'hmac_auth_req'
+            if is_psk_expired():
                 mode = 'refr'
-            
-            payload = f'{request_type},{client_id}'
-            publish(topic, payload)
-            await_response(payload)
-            
-        def _generate_nonce(rec_payload):
-            _nonce = secrets.token_hex(length = 32)
+                request = 'hmac_refr_req'
 
-            payload = f'{client_id},gen_nonce,{_nonce}'
-            publish(topic, payload)
-            await_response(payload)
+            update_local_state('nonce', nonce)
 
-        def _request_hmac(rec_payload):
-            payload = f'{client_id},hmac_auth_req_hmac,none'
-            publish(topic, payload)
+            topic = 'authentication'
+            payload = f'{client_id},{request},{nonce}'
 
-            await_response(payload)
+            publish(topic, payload)
+            await_response(topic, payload) 
         
-        def _compare_hmac(rec_payload):
-            _encoded_psk = local_state['config']['preshared_key'].encode()
-            _expected_hmac = hmac.new(_encoded_psk, _nonce, hashlib.sha256).hexdigest()
-            del _nonce
-            del _encoded_psk
+        def compare_hmac(rec_payload):
+            ''' Verifies the HMAC sent from the broker is correct'''
 
-            if not _expected_hmac == rec_payload: 
-                payload = f'{client_id},hmac_auth_req_resp,hmac_failure'
-                publish(topic, payload)
-                abort_auth('_compare_hmac', 'received invalid hmac')
-            
-            else:
-                verification_event.clear()
-                payload = f'{client_id},hmac_auth_verify_ok,hmac_ok'
-                publish(topic, payload)
+            topic = 'authentication'
 
-                verification_event.wait(timeout = 30)
-                if not verification_event.is_set(): abort_auth('_compare_hmac', 'timeout')
-            
-        def _set_auth(rec_payload):
-            if rec_payload == 'hmac_ok':
-                local_state['broker_verified'] = True
+            def _wipe_data():
+                nonlocal _nonce, _psk, _local_hmac
 
-            else:
-                payload = f'{client_id},hmac_auth_req_final','no_response'
-                publish(topic, payload)
-                abort_auth('_finalize_hmac_auth', "hmac not ok'd")
+                if _nonce:
+                    _nonce = b'\x00' * len(_nonce)
+                    del _nonce
+                
+                if _psk:
+                    _psk = b'\x00' * len(_nonce)
+                    del _psk
+                
+                if _local_hmac:
+                    _local_hmac = b'\x00' * len(_local_hmac)
+                    del _local_hmac
 
-        def _encrypt_psk(_old_psk, _new_psk):
-            
-            if isinstance(_old_psk, str):
-                _old_psk = _old_psk.encode('utf-8')
-            if isinstance(_new_psk, str):
-                _new_psk = _new_psk.encode('utf-8')
+            if client_id == local_state['config']['client_id']:
 
-            if len(_old_psk) == 32 and len(_new_psk) == 32:
-                _cipher = Cipher(algorithms.AES(_old_psk), modes.CFB(_nonce), backend = default_backend())
-                _encryptor = _cipher.encryptor()
+                _nonce = local_state['nonce']
+                _psk = local_state['config']['preshared_key']
 
-                _padder = padding.PKCS7(algorithms.AES.block_size).padder()
-                _padded_new_psk = _padder.update(_new_psk) + _padder.finalize()
+                try:
+                    _local_hmac = hmac.new(_psk, _nonce, hashlib.sha256).hexdigest()
+                except Exception as e:
+                    report_error(e, 'compare_hmac', 'mqtt', 'crit', False, True, False, e)
 
-                encrypted_psk = _encryptor.update(_padded_new_psk) + _encryptor.finalize()
+                    update_local_state('nonce', None)
+                    _wipe_data()
 
-                return encrypted_psk
+                if not rec_payload[0] == _local_hmac:
+                    payload = f'{client_id},hmac_bad,none'
+                    publish(topic, payload)
 
-            else:
-                report_error('programming', '_encrypt_psk', 'mqtt', 'crit', True, True, True, f'Programming Error. Unable to encrypt new PSK.\nFor your safety, the program has been stopped. Please notify your administrator.\n\nAdditional details logged in {LOG_FILE}')
-                return None
+                    abort_auth('compare_hmac', 'HMAC Comparison Failed.')
+                
+                else:
+                    payload = f'{client_id},hmac_good,none'
+                    publish(topic, payload)
+                    
+        def refresh_psk(rec_payload): # CONVERTING TO AES-GCM - Stream Cipher Doesn't Make Sense & I Need Something Lightweight
+            ''' Creates A New PSK, Encrypts Based Off of Old PSK & Nonce, Transmits New PSK'''
+            topic = 'authentication'
+            nonce = secrets.token_hex(length = 32)
+            new_psk = secrets.token_hex(32)
+            old_psk = local_state['config']['psk']
+
+            def encrypt_psk(new_psk, old_psk, nonce):
+                if isinstance(old_psk, str):
+                    old_psk = old_psk.encode('utf-8')
+                
+                if isinstance(new_psk, str):
+                    new_psk = new_psk.encode('utf-8')
+                
+                if len(old_psk) == 32 and len(new_psk) == 32:
+                    cipher = Cipher(algorithms.AES(old_psk), modes.CFB(nonce), backend = default_backend())
+                    encryptor = cipher.encryptor()
+                    
+                    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+                    padded_new_psk = padder.update(padded_new_psk) + encryptor.finalize()
+
+                    return encryptor.update(padded_new_psk) + encryptor.finalize()
+                
+                else:
+                    reason = 'Programming Error: PSK Refresh (encrypt_psk)'
+                    report_error(reason, 'refresh_psk', 'mqtt', 'crit', True, True, False, reason)
+
 
         def _generate_psk(rec_payload):
             update_local_state('new_psk', secrets.token_hex(32))
@@ -1511,35 +1538,18 @@ def client_logic_thread():
             client.disconnect()
             client.reconnect()
 
-        def _retrieve_auth_message():
+        def retrieve_auth_message():
             return local_state['auth_messages'].get()
 
-        initial_request()
+        generate_initial_req() # Blocking: Waits for next message received
 
-        if mode == 'refr':
-            if (message := _retrieve_auth_message())[0] == 'hmac_refr_ok':
-                print('Nonce')
-                _generate_nonce()
-                print('    +')
+        if mode == 'refr': # Refreshes PSK and Forces Re-Authentication With Broker
+            pass
 
-            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
-                _generate_psk(message[1])
-
-            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
-                _verify_new_psk(message[1])
-            
-            if (message := _retrieve_auth_message())[0] == 'psk_verified':
-                _finalize_new_psk(message[1])
-
-        elif mode == 'req':
-            if (message := _retrieve_auth_message())[0] == 'hmac_req_ok':
-                _generate_nonce()
-
-            if (message := _retrieve_auth_message())[0] == 'nonce_ok':
-                _request_hmac()
-            
-            if (message := _retrieve_auth_message())[0] == 'hmac_resp':
-                _compare_hmac(message[1])
+        elif mode == 'auth': # Authenticates via HMAC
+            rec_payload = retrieve_auth_message()
+            if rec_payload[0] == 'hmac':
+                compare_hmac(rec_payload)
 
     authentication_thread = threading.Thread(target = verify_broker())
 
@@ -1708,7 +1718,6 @@ def broker_logic_thread():
 
         is_verifying_broker = True
         mode = None # Tracks whether requesting client is authing via HMAC or refreshing their PSK
-# NEED TO MOVE PSK / HMAC LOGIC TO BROKER_LOGIC_THREAD
 
     def get_hardware_secret():
         if platform.system() == 'Windows':
@@ -1810,6 +1819,53 @@ def broker_logic_thread():
         except Exception as e:
             report_error(e, '_create_hmac', 'mqtt', 'crit', False, True, False, f'Unable to create HMAC of stored PSK for client: {client_id}')
 
+    auth_resp_list = {'hmac_auth_req': hmac_auth_ack,
+                    'gen_nonce': gen_hmac,
+                    'hmac_auth_req_hmac': '',
+                    'hmac_auth_req_resp': '',
+                    'hmac_auth_verify_ok': '',
+                    'hmac_auth_req_final': '',
+                    'psk_refr_ok': ''}
+
+    ''' 
+        HMAC Auth Message Flow:
+        Client: HMAC Auth Request (Includes Nonce)
+        Broker: HMAC Response
+        Client: HMAC Good / Bad
+    '''
+
+    while True:  # Periodically check the requests/messages queue and handle anything received.
+        try:
+            data = local_state['req_to_broker_logic_thread'].get(timeout = 1)
+            sender = data[0]  # Extract sender (potential client_id) from the request
+            request = data[1]
+            
+            # If the sender is already authenticated, process the message with normal moderation
+            if sender in local_state['authenticated_clients']:
+                return
+
+            current_authenticating = local_state.get('authenticating_client')
+
+            if current_authenticating is None:
+                update_local_state('authenticating_client', sender)
+
+            if sender == current_authenticating:
+                return
+            else:
+                # If another client is authenticating, send delay request to sender
+                topic = 'authentication'
+                payload = f'{sender},delay,none'
+                publish(topic, payload)
+            
+            return
+
+        except Empty:
+            continue
+
+        time.sleep(1) # Check the queue once a second.
+
+    return
+
 def broker_mqtt_thread():
     global client, contacts
 
@@ -1843,7 +1899,7 @@ def broker_mqtt_thread():
             except Exception as e:
                 report_error(e, '_on_broker_message: is_verifying_broker', 'mqtt', 'warn', True, True, False)
 
-            local_state['mqtt_messages'].put((_response_type, rec_payload))
+            local_state['auth_messages'].put((_response_type, rec_payload))
             verification_event.set()
 
         elif msg.topic == 'main':
@@ -1874,31 +1930,34 @@ def app_start():
                 'platform': platform.system(),
                 'config': get_config(),
                 'images': {},
-                'main_obj_refs': {}, # Holds all main and sec obj references with UUID as key
+                'icons': {},
+                'main_obj_refs': {}, # Holds all main obj references with UUID as key
                 'sec_obj_refs': {},
                 'mc_panel_ref': None,
                 'sec_panel_ref': None,
                 'set_panel_ref': None,
                 'active_panel_ref': None,
-                'broker_verified': False,
+                'broker_verified': False, 
                 'manual_reconnect': False,
-                'side_bg_color': '',
-                'side_fg_color': '',
-                'mc_bg_color': '',
-                'mc_fg_color': '',
-                'accent_bg_color': '',
-                'accent_fg_color': '',
-                'icons': '',
+                'side_bg_color': None,
+                'side_fg_color': None,
+                'mc_bg_color': None,
+                'mc_fg_color': None,
+                'accent_bg_color': None,
+                'accent_fg_color': None,
                 'screen_width': None,
                 'screen_height': None,
                 'is_object_active': False,
-                'active_obj_id': None,
+                'active_obj_id': None, # Tracks which object is currently selected in UI
+                'authenticating_client': None, # Tracks currently authenticating client
                 'auth_messages': Queue(),
-                'req_to_mqtt_thread': Queue(),
-                'req_to_tk_thread': Queue(),
-                'obj_to_tk_thread': Queue(),
-                'req_to_logic_thread': Queue(),
-                'obj_to_logic_thread': Queue(),
+                'mqtt_messages': Queue(),
+                'req_to_client_mqtt_thread': Queue(),
+                'req_to_client_tk_thread': Queue(),
+                'obj_to_client_tk_thread': Queue(),
+                'req_to_client_logic_thread': Queue(),
+                'obj_to_client_logic_thread': Queue(),
+                'req_to_broker_logic_thread': Queue()
             }
     
     if local_state['config']['mode'] == 'client':
